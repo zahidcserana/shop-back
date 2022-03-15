@@ -1,0 +1,13 @@
+TRUNCATE `carts`;
+TRUNCATE `cart_items`;
+TRUNCATE `damage_items`;
+TRUNCATE `inventories`;
+TRUNCATE `inventory`;
+TRUNCATE `notifications`;
+TRUNCATE `orders`;
+TRUNCATE `order_dues`;
+TRUNCATE `order_items`;
+TRUNCATE `products`;
+TRUNCATE `sales`;
+TRUNCATE `sale_items`;
+TRUNCATE `subscriptions`;

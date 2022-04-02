@@ -13,6 +13,31 @@ class Order extends Model
 
     protected $guarded = [];
 
+    public function items()
+    {
+        return $this->hasMany('App\Models\OrderItem');
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany('App\Models\OrderItem');
+    }
+
+    public function PharmacyBranch()
+    {
+        return $this->belongsTo('App\Models\PharmacyBranch');
+    }
+
+    public function pharmacy()
+    {
+        return $this->belongsTo('App\Models\Pharmacy');
+    }
+
+    public function company()
+    {
+        return $this->belongsTo('App\Models\MedicineCompany');
+    }
+
     public function makeOrder($data)
     {
         $cartModel = new Cart();
@@ -69,9 +94,9 @@ class Order extends Model
             $orderData['order_id'] = $order->id;
             $orderData['amount'] = $order->total_payble_amount;
             $company = $order->company()->first();
-            $orderData['company'] = ['id'=>$company['id'], 'name' =>$company['company_name']];
+            $orderData['company'] = ['id' => $company['id'], 'name' => $company['company_name']];
             $pharmacy = $order->PharmacyBranch()->first();
-            $orderData['pharmacy'] = ['name'=> $pharmacy->branch_name, 'mobile' => $pharmacy->branch_contact_person_mobile];
+            $orderData['pharmacy'] = ['name' => $pharmacy->branch_name, 'mobile' => $pharmacy->branch_contact_person_mobile];
 
             $itemList = array();
             foreach ($items as $item) {
@@ -130,7 +155,6 @@ class Order extends Model
                 $aData['status'] = $item->status;
 
                 $orderData[] = $aData;
-
             }
             $order->items = $orderData;
 
@@ -325,33 +349,4 @@ class Order extends Model
         $order->update($data);
         return true;
     }
-
-    /** ************* */
-
-    /** Relationship */
-    public function items()
-    {
-        return $this->hasMany('App\Models\OrderItem');
-    }
-
-    public function orderItems()
-    {
-        return $this->hasMany('App\Models\OrderItem');
-    }
-
-    public function PharmacyBranch()
-    {
-        return $this->belongsTo('App\Models\PharmacyBranch');
-    }
-
-    public function pharmacy()
-    {
-        return $this->belongsTo('App\Models\Pharmacy');
-    }
-
-    public function company()
-    {
-        return $this->belongsTo('App\Models\MedicineCompany');
-    }
-    /** **** **** **** **** **** **** */
 }

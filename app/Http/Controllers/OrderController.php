@@ -363,7 +363,7 @@ class OrderController extends Controller
     public function UpdateTypeInformation(Request $request)
     {
         if ($request->old_type) {
-            $typeDetails = $request->old_type ? MedicineType::where('name','like', $request->old_type)->first() : 0;
+            $typeDetails = $request->old_type ? MedicineType::where('name', 'like', $request->old_type)->first() : 0;
 
             if ($typeDetails) {
                 $UpdateMedicineType = MedicineType::find($typeDetails->id);;
@@ -835,75 +835,38 @@ class OrderController extends Controller
 
     public function purchaseList(Request $request)
     {
-        $data = $request->query();
         $pageNo = $request->query('page_no') ?? 1;
-        $limit = $request->query('limit') ?? 500;
+        $limit = $request->query('limit') ?? 100;
         $offset = (($pageNo - 1) * $limit);
-        $where = array();
-        $user = $request->auth;
-        $where = array_merge(array(['orders.pharmacy_branch_id', $user->pharmacy_branch_id]), $where);
-        if (!empty($data['invoice'])) {
-            $where = array_merge(array(['orders.invoice', 'LIKE', '%' . $data['invoice'] . '%']), $where);
-        }
-        if (!empty($data['company_invoice'])) {
-            $where = array_merge(array(['orders.company_invoice', 'LIKE', '%' . $data['company_invoice'] . '%']), $where);
-        }
-        if (!empty($data['company_id'])) {
-            $where = array_merge(array(['orders.company_id', 'LIKE', $data['company_id']]), $where);
-        }
 
-        if (!empty($data['purchase_date'])) {
-            $dateRange = explode(',', $data['purchase_date']);
-            // $query = Sale::where($where)->whereBetween('created_at', $dateRange);
-            $where = array_merge(array([DB::raw('DATE(orders.created_at)'), '>=', $dateRange[0]]), $where);
-            $where = array_merge(array([DB::raw('DATE(orders.created_at)'), '<=', $dateRange[1]]), $where);
-        }
-        // $query = Sale::where($where);
-        // $total = $query->count();
-        // $orders = $query
-        //     ->orderBy('sales.id', 'desc')
-        //     ->offset($offset)
-        //     ->limit($limit)
-        //     ->get();
+        $collection = Order::query();
+        $collection->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id);
 
+        $collection->when($request['invoice'], function ($q) use ($request) {
+            return $q->where('invoice', 'like', '%' . $request['invoice'] . '%');
+        });
+        $collection->when($request['company_invoice'], function ($q) use ($request) {
+            return $q->where('company_invoice', 'like', '%' . $request['company_invoice'] . '%');
+        });
+        $collection->when($request['company_id'], function ($q) use ($request) {
+            return $q->where('company_id', $request['company_id']);
+        });
+        $collection->when($request['purchase_date'], function ($q) use ($request) {
+            $dateRange = explode(',', $request['purchase_date']);
+            return $q->whereBetween('purchase_date', [$dateRange[0], $dateRange[1] . ' 23:59:59']);
+        });
 
-        // $query = $request->query();
-        //
-        // $pageNo = $request->query('page_no') ?? 1;
-        // $limit = $request->query('limit') ?? 100;
-        // $offset = (($pageNo - 1) * $limit);
-        //
-        // $where = array();
-        // $user = $request->auth;
-        // $where = array_merge(array(['orders.pharmacy_branch_id', $user->pharmacy_branch_id]), $where);
-
-        $query = Order::select(
-            'orders.id as order_id',
-            'orders.invoice',
-            'orders.company_invoice',
-            'medicine_companies.company_name',
-            'orders.purchase_date',
-            'orders.quantity',
-            'orders.sub_total',
-            'orders.tax as vat',
-            'orders.tax_type as vat_type',
-            'orders.discount',
-            'orders.total_amount',
-            'orders.total_payble_amount',
-            'orders.total_advance_amount',
-            'orders.total_due_amount',
-            'orders.status',
-            'orders.created_by'
-        )
-            ->where($where)
-            ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id');
-
-        $total = $query->count();
-        $orders = $query
-            ->orderBy('orders.id', 'desc')
+        $total = $collection->count();
+        $orders = $collection
+            ->latest()
             ->offset($offset)
             ->limit($limit)
+            ->select('orders.*')
             ->get();
+
+        foreach ($orders as $order) {
+            $order->company;
+        }
 
         return response()->json(array(
             'total' => $total,

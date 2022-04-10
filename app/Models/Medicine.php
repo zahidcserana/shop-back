@@ -21,6 +21,11 @@ class Medicine extends Model
     return $this->belongsTo('App\Models\MedicineCompany');
   }
 
+  public function brand()
+  {
+    return $this->belongsTo(Brand::class);
+  }
+
   public function stockBalanceItems()
   {
     return $this->hasMany(StockBalanceItem::class, 'product_id');

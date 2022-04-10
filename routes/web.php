@@ -70,6 +70,10 @@ $router->group(
                 $router->get('companies', ['uses' => 'CompanyController@index']); // only name of all companies
                 $router->get('companies/inventory', ['uses' => 'CompanyController@getCompaniesByInventory']); // only name of all companies
                 $router->get('company-list', ['uses' => 'CompanyController@companyList']);
+                $router->post('supplier/store', ['uses' => 'CompanyController@store']);
+                $router->post('supplier/{id}/update', ['uses' => 'CompanyController@update']);
+                $router->delete('supplier/{id}/delete', ['uses' => 'CompanyController@destroy']);
+
 
                 /** Carts */
                 $router->post('carts/add-to-cart', ['uses' => 'CartController@addToCart']);
@@ -177,16 +181,22 @@ $router->group(
                 $router->get('reports/inventory/damagesList', ['uses' => 'OrderController@damagesList']);
 
                 //Products
-                $router->get('type/list', ['uses' => 'OrderController@typeList']);
                 $router->get('type/search', ['uses' => 'OrderController@typeSearch']);
                 $router->post('product/type/save', ['uses' => 'OrderController@productTypeSave']);
                 $router->post('inventory/generic/search', ['uses' => 'ProductController@genericSearch']);
 
-                //type/update
-                $router->post('type/update', ['uses' => 'OrderController@UpdateTypeInformation']);
+                //Settings
+                $router->get('type/list', ['uses' => 'SettingsController@types']);
+                $router->post('type/update', ['uses' => 'SettingsController@typeSave']);
+                $router->delete('type/{id}', ['uses' => 'SettingsController@destroyType']);
+                $router->get('brand/list', ['uses' => 'SettingsController@brands']);
+                $router->post('brand/save', ['uses' => 'SettingsController@brandSave']);
+                $router->delete('brand/{id}', ['uses' => 'SettingsController@destroyBrand']);
 
                 $router->post('product/save', ['uses' => 'OrderController@productSave']);
+                $router->post('product/update/{id}', ['uses' => 'OrderController@productUpdate']);
                 $router->get('product/list', ['uses' => 'OrderController@userAddedProductList']);
+                $router->delete('product/{id}/delete', ['uses' => 'OrderController@destroy']);
 
                 //Company
                 $router->post('company/save', ['uses' => 'OrderController@saveCompanyInformation']);

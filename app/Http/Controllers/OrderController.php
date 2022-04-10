@@ -274,12 +274,11 @@ class OrderController extends Controller
 
     public function productSave(Request $request)
     {
-        $company_id = $request->company ? $request->company : 0;
         $type_id = $request->type_id ? $request->type_id : 0;
 
         $user = $request->auth;
 
-        if (!$company_id || !$type_id || !$request->product_name) {
+        if (!$type_id || !$request->product_name) {
             return response()->json(array(
                 'data' => "Product Added unsuccessful!",
                 'status' => false
@@ -287,9 +286,7 @@ class OrderController extends Controller
         }
 
         $isExist = Medicine::where('brand_name', 'like', $request->product_name)
-            ->where('company_id', $company_id)
             ->where('generic_name', $request->generic)
-            ->where('strength', $request->power)
             ->where('medicine_type_id', $type_id)
             ->get();
 
@@ -300,15 +297,49 @@ class OrderController extends Controller
             ));
         } else {
             $AddMedicine = new Medicine();
-            $AddMedicine->company_id = $company_id;
             $AddMedicine->brand_name = $request->product_name;
             $AddMedicine->generic_name = $request->generic;
-            $AddMedicine->strength = $request->power;
+            $AddMedicine->brand_id = $request->brand_id;
             $AddMedicine->medicine_type_id = $type_id;
             $AddMedicine->created_by = $user->id;
             $AddMedicine->product_type = $request->product_type;
             $AddMedicine->save();
         }
+        return response()->json(array(
+            'data' => "Product Added Successful!",
+            'status' => true
+        ));
+    }
+
+    public function productUpdate(Request $request, $id)
+    {
+        $type_id = $request->type_id ?? 0;
+
+        $user = $request->auth;
+
+        if (!$type_id || !$request->product_name) {
+            return response()->json(array(
+                'data' => "Product Added unsuccessful!",
+                'status' => false
+            ));
+        }
+
+        if (empty($id) || empty(Medicine::find($id))) {
+            return response()->json(array(
+                'data' => "Invalid ID",
+                'status' => false
+            ));
+        } else {
+            $AddMedicine = Medicine::find($id);
+            $AddMedicine->brand_name = $request->product_name;
+            $AddMedicine->generic_name = $request->generic;
+            $AddMedicine->brand_id = $request->brand_id;
+            $AddMedicine->medicine_type_id = $type_id;
+            $AddMedicine->created_by = $user->id;
+            $AddMedicine->product_type = $request->product_type;
+            $AddMedicine->save();
+        }
+
         return response()->json(array(
             'data' => "Product Added Successful!",
             'status' => true
@@ -360,39 +391,30 @@ class OrderController extends Controller
         return response()->json(['status' => true, 'message' => "Company Updated Successful!"]);
     }
 
-    public function UpdateTypeInformation(Request $request)
-    {
-        if ($request->old_type) {
-            $typeDetails = $request->old_type ? MedicineType::where('name', 'like', $request->old_type)->first() : 0;
-
-            if ($typeDetails) {
-                $UpdateMedicineType = MedicineType::find($typeDetails->id);;
-                $UpdateMedicineType->name = $request->new_type;
-                $UpdateMedicineType->save();
-            } else {
-                return response()->json(['status' => false, 'message' => "Please Check All the details!"], 302);
-            }
-        } else {
-            return response()->json(['status' => false, 'message' => "Please Check All the details!"], 302);
-        }
-
-        return response()->json(['status' => true, 'message' => "Product Type Updated Successful!"], 201);
-    }
-
     public function userAddedProductList(Request $request)
     {
         $user = $request->auth;
-        $MedicineList = Medicine::select('medicines.brand_name', 'medicines.generic_name', 'medicines.strength', 'medicines.product_type', 'medicine_types.name as type', 'medicine_companies.company_name')
+        $MedicineList = Medicine::select('medicines.id','medicines.brand_name', 'brand_id', 'medicine_type_id', 'medicines.generic_name', 'medicines.strength', 'medicines.product_type', 'medicine_types.name as type', 'brands.name as brand')
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('created_by', $user->id)
             ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
             ->leftjoin('medicine_companies', 'medicines.company_id', '=', 'medicine_companies.id')
+            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
             ->get();
 
         return response()->json(array(
             'data' => $MedicineList,
             'message' => "Product Listed Successful!",
         ));
+    }
+
+    public function destroy($id)
+    {
+        if (Medicine::destroy($id)) {
+            return response()->json(['success' => true, 'message' => "Product deleted successfully!"]);
+        }
+
+        return response()->json(['success' => false]);
     }
 
     public function previousPurchaseDetails(Request $request)
@@ -1981,12 +2003,6 @@ class OrderController extends Controller
             $data[] = ['id' => $type->id, 'name' => $type->name];
         }
         return response()->json($data);
-    }
-
-    public function typeList(Request $request)
-    {
-        $typeList = MedicineType::select('id', 'name')->orderBy('name', 'asc')->get();
-        return response()->json($typeList);
     }
 
     public function inventoryListFilter(Request $request)

@@ -204,21 +204,22 @@ class MedicineController extends Controller
     {
         $str = $request->input('search');
         $openSale = true;
-        $pharmacyMedicineIds = $openSale ? false : DB::table('inventories')->select('medicine_id')->distinct()->pluck('medicine_id');
+        // $pharmacyMedicineIds = $openSale ? false : DB::table('inventories')->select('medicine_id')->distinct()->pluck('medicine_id');
 
         $medicines = Medicine::where('brand_name', 'like', $str . '%')
-            ->orWhere('barcode', 'like', $str . '%')
-            ->when($pharmacyMedicineIds, function ($query, $pharmacyMedicineIds) {
-                return $query->whereIn('id', $pharmacyMedicineIds);
-            })
+            // ->orWhere('barcode', 'like', $str . '%')
+            // ->when($pharmacyMedicineIds, function ($query, $pharmacyMedicineIds) {
+            //     return $query->whereIn('id', $pharmacyMedicineIds);
+            // })
             ->orderBy('brand_name', 'asc')
             ->get();
+
         $data = array();
         foreach ($medicines as $medicine) {
-            $company = DB::table('medicine_companies')->where('id', $medicine->company_id)->first();
-            $medicineType = $medicine->product_type == 1 ? $medicine->medicineType->name : ' CP';
-            $medicineStr = $medicine->brand_name . ' (' . $medicine->strength . ',' . $medicineType . ')';
-            $data[] = ['id' => $medicine->id, 'name' => $medicineStr, 'company' => $company->company_name];
+            // $company = DB::table('medicine_companies')->where('id', $medicine->company_id)->first();
+            // $medicineType = $medicine->product_type == 1 ? $medicine->medicineType->name : ' CP';
+            // $medicineStr = $medicine->brand_name . ' (' . $medicine->strength . ',' . $medicineType . ')';
+            $data[] = ['id' => $medicine->id, 'name' => $medicine->brand_name, 'company' => ''];
         }
         return response()->json($data);
     }

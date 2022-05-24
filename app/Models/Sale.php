@@ -23,8 +23,8 @@ class Sale extends Model
             'customer_mobile' => $data['customer_mobile'] ?? '',
             'pharmacy_id' => $cartData->pharmacy_id,
             'created_by' => $data['created_by'] == 0 ? $cartData->created_by : $data['created_by'],
-            'file' => $cartData->file??'',
-            'file_name' => $cartData->file_name??'',
+            // 'file' => $cartData->file??'',
+            // 'file_name' => $cartData->file_name??'',
             'pharmacy_branch_id' => $cartData->pharmacy_branch_id,
             'quantity' => $cartData->quantity,
             'payment_type' => $data['payment_type'],
@@ -59,11 +59,10 @@ class Sale extends Model
     {
         // $pharmacyBranchModel = new PharmacyBranch();
         // $pharmacyBranch = $pharmacyBranchModel->where('id', $pharmacy_branch_id)->first();
-        // $invoice = $orderId . substr($pharmacyBranch->branch_mobile, -4) . Carbon::now()->timestamp;
-        $invoice = 'INV-000'.$orderId;
+        // $invoice = $orderId . substr($pharmacyBranch->branch_mobile??'0000', -4) . Carbon::now()->timestamp;
+        $invoice = 'INV-' . Carbon::now()->timestamp . $orderId;
 
         $this->where('id', $orderId)->update(['invoice' => $invoice]);
-        return;
     }
 
     public function getAllOrder($where, $offset, $limit)
@@ -199,10 +198,11 @@ class Sale extends Model
             $medicine = $item->medicine;
             $aData['medicine'] = $medicine->brand_name;
             $aData['medicine_power'] = $medicine->strength;
-            $aData['medicine_type'] = $medicine->medicineType->name;
+            $aData['brand'] = $medicine->brand->name ?? '';
+            $aData['medicine_type'] = $medicine->medicineType->name ?? '';
 
-            $company = MedicineCompany::findOrFail($item->company_id);
-            $aData['company'] = $company->company_name;
+            // $company = MedicineCompany::findOrFail($item->company_id);
+            $aData['company'] = '';
 
             $items[] = $aData;
         }

@@ -96,16 +96,17 @@ class MedicineController extends Controller
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
             ->get();
 
-        $all_sell_item = SaleItem::select('sale_items.medicine_id', 'sale_items.company_id', 'medicine_companies.company_name', 'medicines.brand_name', 'medicines.generic_name', 'medicines.strength', DB::raw('SUM(sale_items.quantity) as quantity'))
+        $all_sell_item = SaleItem::select('brands.name as brand', 'sale_items.medicine_id', 'medicines.brand_name', 'medicines.generic_name', 'medicines.strength', DB::raw('SUM(sale_items.quantity) as quantity'))
             ->leftjoin('medicines', 'medicines.id', '=', 'sale_items.medicine_id')
-            ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'sale_items.company_id')
+            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
             ->groupBy('sale_items.medicine_id')
             ->orderBy('quantity', 'DESC')
             ->get();
 
-        $top_company = SaleItem::select('sale_items.company_id', 'medicine_companies.company_name', DB::raw('SUM(sale_items.sub_total) as amount'))
-            ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'sale_items.company_id')
-            ->groupBy('sale_items.company_id')
+        $top_company = SaleItem::select('brands.name as brand', DB::raw('SUM(sale_items.sub_total) as amount'))
+            ->leftjoin('medicines', 'medicines.id', '=', 'sale_items.medicine_id')
+            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
+            ->groupBy('brands.id')
             ->orderBy('amount', 'DESC')
             ->get();
 
@@ -181,21 +182,21 @@ class MedicineController extends Controller
     {
         $str = $request->input('search');
 
-        $companyData = $request->input('company') ? MedicineCompany::where('company_name', 'like', $request->input('company'))->first() : 0;
+        // $companyData = $request->input('company') ? MedicineCompany::where('company_name', 'like', $request->input('company'))->first() : 0;
 
-        $company_id =  $companyData ? $companyData->id : 0;
+        // $company_id =  $companyData ? $companyData->id : 0;
 
-        $medicines = Medicine::where('brand_name', 'like', $str . '%')
-            ->orWhere('barcode', 'like', $str . '%')
-            ->when($company_id, function ($query, $company_id) {
-                return $query->where('company_id', $company_id);
-            })
+        $medicines = Medicine::where('brand_name', 'like', '%'. $str . '%')
+            ->orWhere('barcode', 'like', '%'. $str . '%')
+            // ->when($company_id, function ($query, $company_id) {
+            //     return $query->where('company_id', $company_id);
+            // })
             ->orderBy('brand_name', 'asc')
             ->get();
+
         $data = array();
         foreach ($medicines as $medicine) {
-            $medicineStr = $medicine->brand_name . ' (' . $medicine->strength . ',' . $medicine->medicineType->name . ')';
-            $data[] = ['id' => $medicine->id, 'name' => $medicineStr];
+            $data[] = ['id' => $medicine->id, 'name' => $medicine->brand_name , 'brand' => $medicine->brand->name?? '', 'type' => $medicine->medicineType->name??''];
         }
         return response()->json($data);
     }

@@ -22,19 +22,21 @@ class CartController extends Controller
             'quantity' => 'required'
         ]);
         $cart = Cart::where('token', $data['token'])->first();
+
         if ($cart && CartItem::where('medicine_id', $data['medicine_id'])->where('cart_id', $cart->id)->first()) {
             return response()->json(['success' => false, 'error' => 'Already added this item!']);
         }
+
         $cartModel = new Cart();
         $cart = $cartModel->AddToCart($data, $user);
 
         return response()->json($cart);
     }
 
-    public function view($cartToken)
+    public function view($token)
     {
 
-        $cart = Cart::where('token', $cartToken)->first();
+        $cart = Cart::where('token', $token)->first();
         if (empty($cart)) {
             return response()->json(['success' => false, 'error' => 'Invalid Cart Token!']);
         }
@@ -44,14 +46,13 @@ class CartController extends Controller
         return response()->json($result);
     }
 
-    public function tokenCheck($cartToken)
+    public function tokenCheck($token)
     {
-
-        $cart = Cart::where('token', $cartToken)->first();
-        if (empty($cart)) {
-            return response()->json(['status' => false]);
+        $cart = Cart::where('token', $token)->first();
+        if (!empty($cart)) {
+            return response()->json(['status' => true]);
         }
-        return response()->json(['status' => true]);
+        return response()->json(['status' => false]);
     }
 
     public function quantityUpdate(Request $request)

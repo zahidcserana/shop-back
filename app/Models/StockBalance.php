@@ -67,7 +67,7 @@ class StockBalance extends Model
     {
         $where = array();
         $where = array_merge(array(['sales.pharmacy_branch_id', $this->pharmacy_branch_id]), $where);
-        $where = array_merge(array(['sales.status', 'COMPLETE']), $where);
+        // $where = array_merge(array(['sales.status', 'COMPLETE']), $where);
 
         $items = Sale::where($where)
             ->whereBetween('sales.sale_date', [$this->date_open, $this->date_close])
@@ -86,7 +86,7 @@ class StockBalance extends Model
     {
         $where = array();
         $where = array_merge(array(['orders.pharmacy_branch_id', $this->pharmacy_branch_id]), $where);
-        $where = array_merge(array(['orders.status', 'ACCEPTED']), $where);
+        // $where = array_merge(array(['orders.status', 'ACCEPTED']), $where);
 
         $items = Order::where($where)
             ->whereBetween('purchase_date', [$this->date_open, $this->date_close])

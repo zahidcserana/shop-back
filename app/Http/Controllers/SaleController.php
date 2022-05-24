@@ -86,6 +86,7 @@ class SaleController extends Controller
     }
     return response()->json(['success' => false, 'data' => $saleModel->getOrderDetails($saleData->id)]);
   }
+
   public function discount(Request $request)
   {
     $user = $request->auth;
@@ -510,7 +511,8 @@ class SaleController extends Controller
       $dateRangeData = $lastMonth . ' - ' . $today;
     }
     $query = Sale::where($where)
-      ->orWhere('due_log', '<>', null);
+      // ->orWhere('due_log', '<>', null)
+      ;
     $total = $query->count();
     $orders = $query
       ->orderBy('sales.id', 'desc')
@@ -601,12 +603,12 @@ class SaleController extends Controller
       $where = array_merge(array([DB::raw('DATE(sales.created_at)'), '<=', $today]), $where);
       $dateRangeData = $lastMonth . ' - ' . $today;
     }
-    if (!empty($query['company'])) {
-      $where = array_merge(array(['medicine_companies.company_name', 'LIKE', '%' . $query['company'] . '%']), $where);
-    }
-    if (!empty($query['generic'])) {
-      $where = array_merge(array(['medicines.generic_name', 'LIKE', '%' . $query['generic'] . '%']), $where);
-    }
+    // if (!empty($query['company'])) {
+    //   $where = array_merge(array(['medicine_companies.company_name', 'LIKE', '%' . $query['company'] . '%']), $where);
+    // }
+    // if (!empty($query['generic'])) {
+    //   $where = array_merge(array(['medicines.generic_name', 'LIKE', '%' . $query['generic'] . '%']), $where);
+    // }
     if (!empty($query['product_id'])) {
       $where = array_merge(array(['sale_items.medicine_id', $query['product_id']]), $where);
     }
@@ -622,12 +624,14 @@ class SaleController extends Controller
 
     $query = Sale::where($where)
       ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
-      ->join('medicine_companies', 'sale_items.company_id', '=', 'medicine_companies.id')
+      // ->join('medicine_companies', 'sale_items.company_id', '=', 'medicine_companies.id')
       ->join('medicines', 'sale_items.medicine_id', '=', 'medicines.id')
       ->join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
+      ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
       ->join('users', 'sales.created_by', '=', 'users.id');
 
     $total = $query->count();
+    // dd($total);
     $orders = $query
       ->select(
         'sales.created_at as sale_date',
@@ -648,11 +652,11 @@ class SaleController extends Controller
         'sale_items.tp',
         'users.name',
         'users.user_mobile',
-        'medicines.company_id as company_id',
+        // 'medicines.company_id as company_id',
         'medicines.brand_name',
         'medicines.strength',
         'medicine_types.name as medicine_type',
-        'medicine_companies.company_name as medicine_company'
+        'brands.name as brand'
       )
       ->orderBy('sales.id', 'desc')
       ->get();
@@ -696,7 +700,7 @@ class SaleController extends Controller
         $profit = $aItem->sub_total - $sub_tp;
         $total_profit += $profit;
         $aData = array();
-        $aData['medicine'] = ['id' => $aItem->medicine_id, 'company' => $aItem->medicine_company, 'name' => $aItem->brand_name, 'strength' => $aItem->strength, 'type' => substr($aItem->medicine_type, 0, 3)];
+        $aData['medicine'] = ['id' => $aItem->medicine_id, 'brand' => $aItem->brand, 'name' => $aItem->brand_name, 'type' => substr($aItem->medicine_type, 0, 3)];
         $aData['quantity'] = $aItem->quantity;
         $aData['mrp'] = $aItem->mrp;
         $aData['tp'] = $aItem->tp;
@@ -712,7 +716,7 @@ class SaleController extends Controller
 
       $array[] = $saleData;
     }
-    $sammary = array(
+    $summary = array(
       'sum_total_profit' => $sum_total_profit,
       'sum_sale_amount' => $sum_sale_amount,
       'sum_sale_discount' => $sum_sale_discount,
@@ -723,8 +727,9 @@ class SaleController extends Controller
     );
     $data = array(
       'data' => $array,
-      'summary' => $sammary,
+      'summary' => $summary,
     );
+
     return response()->json($data);
   }
 
@@ -776,9 +781,9 @@ class SaleController extends Controller
       $where = array_merge(array([DB::raw('DATE(sales.created_at)'), '<=', $today]), $where);
       $dateRangeData = $lastMonth . ' - ' . $today;
     }
-    if (!empty($query['company'])) {
-      $where = array_merge(array(['medicine_companies.company_name', 'LIKE', '%' . $query['company'] . '%']), $where);
-    }
+    // if (!empty($query['company'])) {
+    //   $where = array_merge(array(['medicine_companies.company_name', 'LIKE', '%' . $query['company'] . '%']), $where);
+    // }
     if (!empty($query['generic'])) {
       $where = array_merge(array(['medicines.generic_name', 'LIKE', '%' . $query['generic'] . '%']), $where);
     }
@@ -798,8 +803,9 @@ class SaleController extends Controller
     $query = Sale::where($where)
       ->whereIn('sale_items.return_status', ['RETURN', 'CHANGE'])
       ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
-      ->join('medicine_companies', 'sale_items.company_id', '=', 'medicine_companies.id')
+      // ->join('medicine_companies', 'sale_items.company_id', '=', 'medicine_companies.id')
       ->join('medicines', 'sale_items.medicine_id', '=', 'medicines.id')
+      ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
       ->join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
       ->join('users', 'sales.created_by', '=', 'users.id');
 
@@ -830,7 +836,8 @@ class SaleController extends Controller
         'medicines.brand_name',
         'medicines.strength',
         'medicine_types.name as medicine_type',
-        'medicine_companies.company_name as medicine_company'
+        'brands.name as brand'
+        // 'medicine_companies.company_name as medicine_company'
       )
       ->orderBy('sales.id', 'desc')
       ->get();
@@ -874,7 +881,7 @@ class SaleController extends Controller
         $profit = $aItem->sub_total - $sub_tp;
         $total_profit += $profit;
         $aData = array();
-        $aData['medicine'] = ['id' => $aItem->medicine_id, 'company' => $aItem->medicine_company, 'name' => $aItem->brand_name, 'strength' => $aItem->strength, 'type' => substr($aItem->medicine_type, 0, 3)];
+        $aData['medicine'] = ['id' => $aItem->medicine_id, 'brand' => $aItem->brand, 'name' => $aItem->brand_name, 'type' => substr($aItem->medicine_type, 0, 3)];
         $aData['quantity'] = $aItem->quantity;
         $aData['mrp'] = $aItem->mrp;
         $aData['tp'] = $aItem->tp;

@@ -2,27 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use Validator;
+use Carbon\Carbon;
 use App\Models\Cart;
 use App\Models\Sale;
-use App\Models\SaleItem;
+use App\Models\Order;
+use App\Models\Product;
 use App\Models\CartItem;
 use App\Models\Medicine;
-use App\Models\Product;
+use App\Models\OrderDue;
+use App\Models\SaleItem;
+use Barryvdh\DomPDF\PDF;
 use App\Models\Inventory;
+use App\Models\OrderItem;
 use App\Models\DamageItem;
 use App\Models\ConsumerGood;
 use App\Models\MedicineType;
-use App\Models\MedicineCompany;
-use App\Models\InventoryDetail;
-use App\Models\Order;
-use App\Models\OrderDue;
-use App\Models\OrderItem;
-use Barryvdh\DomPDF\PDF;
 use Illuminate\Http\Request;
 use App\Exports\PurchaseExport;
+use App\Models\InventoryDetail;
+use App\Models\MedicineCompany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\App;
-use Validator;
-use DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
@@ -304,6 +305,9 @@ class OrderController extends Controller
             $AddMedicine->created_by = $user->id;
             $AddMedicine->product_type = $request->product_type;
             $AddMedicine->save();
+
+            $AddMedicine->barcode = Carbon::now()->timestamp . $AddMedicine->id;
+            $AddMedicine->save();
         }
         return response()->json(array(
             'data' => "Product Added Successful!",
@@ -394,7 +398,7 @@ class OrderController extends Controller
     public function userAddedProductList(Request $request)
     {
         $user = $request->auth;
-        $MedicineList = Medicine::select('medicines.id','medicines.brand_name', 'brand_id', 'medicine_type_id', 'medicines.generic_name', 'medicines.strength', 'medicines.product_type', 'medicine_types.name as type', 'brands.name as brand')
+        $MedicineList = Medicine::select('medicines.id', 'medicines.brand_name', 'brand_id', 'medicine_type_id', 'medicines.generic_name', 'medicines.strength', 'medicines.product_type', 'medicine_types.name as type', 'brands.name as brand')
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('created_by', $user->id)
             ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
@@ -420,15 +424,12 @@ class OrderController extends Controller
     public function previousPurchaseDetails(Request $request)
     {
         if ($request->medicine_id) {
-            $itemDetails = Medicine::select('medicines.pcs_per_box as pieces_per_box', 'medicines.tp_per_box as trade_price', 'medicines.vat_per_box as box_vat', 'medicines.mrp_per_box as mrp', 'medicines.barcode', 'products.low_stock_qty')
+            $itemDetails = Medicine::select('medicines.pcs_per_box as pieces_per_box', 'medicines.tp_per_box as trade_price', 'medicines.vat_per_box as box_vat', 'medicines.mrp_per_box as mrp', 'medicines.barcode', 'products.low_stock_qty', 'products.percentage')
                 ->where('medicines.id', $request->medicine_id)
-                ->leftjoin('products', 'products.medicine_id', '=', 'medicines.id')
+                ->leftJoin('products', 'products.medicine_id', '=', 'medicines.id')
                 ->first();
         }
-        return response()->json(array(
-            'data' => $itemDetails,
-            'message' => "Product Listed Successful!",
-        ));
+        return response()->json($itemDetails);
     }
 
     public function medicineUnitPriceDetails(Request $request)
@@ -638,13 +639,9 @@ class OrderController extends Controller
     public function purchaseDetailsDelete(Request $request)
     {
         $orderId = $request->purchase_id;
-        $existing_items = OrderItem::where('order_id', $orderId)->get();
+        OrderItem::where('order_id', $orderId)->delete();
 
-        if (!sizeof($existing_items)) {
-
-            $DeleteInfo = Order::find($orderId);
-            $DeleteInfo->delete();
-
+        if (Order::find($orderId)->delete()) {
             return response()->json(array(
                 'status' => true,
                 'message' => "Purchase deleted Successfull!",
@@ -653,7 +650,7 @@ class OrderController extends Controller
 
         return response()->json(array(
             'status' => false,
-            'message' => "Purchase deleted Successfull!",
+            'message' => "Something went wrong!",
         ));
     }
 
@@ -723,7 +720,6 @@ class OrderController extends Controller
 
     public function purchaseSave(Request $request)
     {
-
         $details = $request->details;
         $items   = $request->items;
         $user    = $request->auth;
@@ -741,6 +737,7 @@ class OrderController extends Controller
         $orderAdd->total_payble_amount  = $details['net_amount'] ? $details['net_amount'] : 0;
         $orderAdd->total_advance_amount = $details['advance'] ? $details['advance'] : 0;
         $orderAdd->total_due_amount     = $details['due'] ? $details['due'] : 0;
+
         if ($details['due']) {
             $orderAdd->payment_type     = "DUE";
             $orderAdd->has_due          = 1;
@@ -755,11 +752,10 @@ class OrderController extends Controller
         $orderAdd->_createOrderInvoice($OrderId, $user->pharmacy_branch_id);
 
         foreach ($items as $item) :
-
             $medicine_id = $item['medicine_id'];
             $medicine = Medicine::where('id', $medicine_id)->get();
             if (sizeof($medicine)) {
-                $company_id = $medicine[0]->company_id;
+                // $company_id = $medicine[0]->company_id;
             } else {
                 DB::table('order_items')->where('order_id', $OrderId)->delete();
                 $DeleteOrderInfo = Order::find($OrderId);
@@ -781,17 +777,18 @@ class OrderController extends Controller
 
             $itemSave = new OrderItem();
             $itemSave->medicine_id      = $item['medicine_id'];
-            $itemSave->company_id       = $company_id;
+            // $itemSave->company_id       = $company_id;
             $itemSave->quantity         = $item['quantity'];
             $itemSave->free_qty         = $item['free_qty'] ?? 0;
             $itemSave->order_id         = $OrderId;
             $itemSave->exp_date         = $exp_date;
             $itemSave->batch_no         = $item['batch_no'];
-            $itemSave->unit_price       = $item['box_mrp'] / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
+            $itemSave->unit_price       = $item['box_mrp'];
             $itemSave->sub_total        = $item['amount'];
             $itemSave->mrp              = $item['box_mrp'];
             $itemSave->trade_price      = $item['box_trade_price'];
-            $itemSave->box_vat          = $item['box_vat'] ? $item['box_vat'] : 0;
+            $itemSave->percentage      = $item['percentage'];
+            $itemSave->box_vat          = $item['box_vat'] ?? 0;
             $itemSave->total            = $item['amount'];
             $itemSave->pieces_per_box   = $item['piece_per_box'];
             $itemSave->save();
@@ -808,7 +805,7 @@ class OrderController extends Controller
                 $UpdateMedicine->save();
             }
 
-            $per_item_vat = ($item['box_trade_price'] + $item['box_vat']) / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
+            // $per_item_vat = ($item['box_trade_price'] + $item['box_vat']) / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
 
             $isProcuctExist = Product::where('medicine_id', $medicine_id)->get();
             $free_qty = !empty($item['free_qty']) ? ($item['free_qty'] * $item['piece_per_box']) : 0;
@@ -817,33 +814,37 @@ class OrderController extends Controller
 
                 $UpdateProduct = Product::find($procuctId);
 
-                $UpdateProduct->quantity            = $free_qty + $UpdateProduct->quantity + ($item['quantity'] * $item['piece_per_box']);
+                $UpdateProduct->quantity            = $free_qty + $UpdateProduct->quantity + $item['quantity'];
+
                 if ($item['update_price']) {
-                    $UpdateProduct->mrp             = $item['box_mrp'] / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
-                    $UpdateProduct->tp              = $per_item_vat ? $per_item_vat : 0.00;
+                    $UpdateProduct->mrp             = $item['box_mrp'];
+                    $UpdateProduct->tp              = $item['box_trade_price'];
 
                     if ($item['low_stock_qty']) {
                         $UpdateProduct->low_stock_qty   = $item['low_stock_qty'] ? $item['low_stock_qty'] : 0;
                     }
                 }
-                $UpdateProduct->batch_no            = $item['batch_no'];
-                $UpdateProduct->company_id          = $company_id ? $company_id : 0;
+                // $UpdateProduct->batch_no            = $item['batch_no'];
+                $UpdateProduct->percentage            = $item['percentage'] ?? 0;
+                // $UpdateProduct->company_id          = $company_id ? $company_id : 0;
                 $UpdateProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
                 $UpdateProduct->save();
             } else {
                 $InsertProduct = new Product();
                 $InsertProduct->medicine_id         = $medicine_id;
-                $InsertProduct->quantity            = $free_qty + ($item['quantity'] * $item['piece_per_box']);
+                $InsertProduct->quantity            = $free_qty + $item['quantity'];
                 if ($item['update_price']) {
-                    $InsertProduct->mrp             = $item['box_mrp'] / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
-                    $InsertProduct->tp              = $per_item_vat ? $per_item_vat : 0.00;
+                    $InsertProduct->mrp             = $item['box_mrp'];
+                    $InsertProduct->tp              = $item['box_trade_price'];
 
                     if ($item['low_stock_qty']) {
                         $InsertProduct->low_stock_qty   = $item['low_stock_qty'] ? $item['low_stock_qty'] : 0;
                     }
                 }
-                $InsertProduct->batch_no            = $item['batch_no'];
-                $InsertProduct->company_id          = $company_id ? $company_id : 0;
+
+                $InsertProduct->percentage            = $item['percentage'] ?? 0;
+                // $InsertProduct->batch_no            = $item['batch_no'];
+                // $InsertProduct->company_id          = $company_id ? $company_id : 0;
                 $InsertProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
                 $InsertProduct->save();
             }
@@ -924,11 +925,12 @@ class OrderController extends Controller
             $order_id = $order->id;
             $itemList = [];
 
-            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'medicine_companies.company_name', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
+            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'brands.name as brand', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
                 ->where('order_items.order_id', $order_id)
                 ->leftjoin('medicines', 'medicines.id', '=', 'order_items.medicine_id')
                 ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-                ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
+                ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
+                // ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
                 ->get();
 
             foreach ($orderItems as $item) :
@@ -936,16 +938,16 @@ class OrderController extends Controller
                 $box_vat = $item->box_vat;
                 $tp_with_vat = $trade_price + $box_vat;
 
-                $item_name = $item->brand_name . ' ' . $item->strength;
+                $item_name = $item->brand_name . ' ' . $item->brand;
 
-                $itemList[] = array('medicine' => $item_name, 'medicine_type' => $item->medicine_type, 'company_name' => $item->company_name, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
+                $itemList[] = array('medicine' => $item_name, 'medicine_type' => $item->medicine_type, 'brand' => $item->brand, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no);
             endforeach;
 
             $total_amount = $total_amount + $order->total_amount;
             $total_discount = $total_discount + $order->discount;
             $total_due = $total_due + $order->total_due_amount;
 
-            $data[] = array('invoice' => $order->invoice, 'purchase_date' => $order->purchase_date, 'created_by' => $order->created_by, 'discount' => $order->discount, 'total_amount' => $order->total_amount, 'total_payble_amount' => $order->total_payble_amount, 'total_advance_amount' => $order->total_advance_amount, 'total_due_amount' => $order->total_due_amount, 'company_name' => $order->company_name, 'items' => $itemList);
+            $data[] = array('id' => $order->id, 'invoice' => $order->invoice, 'purchase_date' => $order->purchase_date, 'created_by' => $order->created_by, 'discount' => $order->discount, 'total_amount' => $order->total_amount, 'total_payble_amount' => $order->total_payble_amount, 'total_advance_amount' => $order->total_advance_amount, 'total_due_amount' => $order->total_due_amount, 'company_name' => $order->company_name, 'items' => $itemList);
         endforeach;
 
         $summary = array('total_amount' => $total_amount, 'total_discount' => $total_discount, 'total_due' => $total_due, 'dateRangeData' => $dateRangeData);
@@ -983,7 +985,7 @@ class OrderController extends Controller
         if (sizeof($company_details)) {
             $company_id = $company_details[0]->id;
             $company_orders = OrderItem::distinct('order_id')
-                ->where('company_id', $company_id)
+                // ->where('company_id', $company_id)
                 ->pluck('order_id');
         }
 
@@ -997,7 +999,7 @@ class OrderController extends Controller
 
             $company_id = $company_details[0]->id;
             $company_orders = OrderItem::distinct('order_id')
-                ->where('company_id', $company_id)
+                // ->where('company_id', $company_id)
                 ->where('medicine_id', $medicine_id)
                 ->pluck('order_id');
 
@@ -1017,6 +1019,9 @@ class OrderController extends Controller
             ->leftjoin('users', 'users.id', '=', 'orders.created_by')
             ->when($invoice, function ($query, $invoice) {
                 return $query->where('orders.invoice', $invoice);
+            })
+            ->when($company_id, function ($query, $company_id) {
+                return $query->where('orders.company_id', $company_id);
             })
             ->when($sales_man, function ($query, $sales_man) {
                 return $query->where('orders.created_by', $sales_man);
@@ -1077,7 +1082,7 @@ class OrderController extends Controller
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.payment_type', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
             ->where('orders.status', 'ACCEPTED')
-            ->where('orders.has_due', '=', 1)
+            ->where('orders.payment_type', 'DUE')
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
             ->leftjoin('users', 'users.id', '=', 'orders.created_by')
             ->orderBy('id', 'DESC')
@@ -1087,11 +1092,11 @@ class OrderController extends Controller
             $order_id = $order->id;
             $itemList = [];
 
-            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'medicine_companies.company_name', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
+            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'brands.name as brand', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
                 ->where('order_items.order_id', $order_id)
                 ->leftjoin('medicines', 'medicines.id', '=', 'order_items.medicine_id')
                 ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-                ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
+                ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
                 ->get();
 
             foreach ($orderItems as $item) :
@@ -1101,7 +1106,7 @@ class OrderController extends Controller
 
                 $item_name = $item->brand_name . ' ' . $item->strength;
 
-                $itemList[] = array('medicine' => $item_name, 'medicine_type' => $item->medicine_type, 'company_name' => $item->company_name, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
+                $itemList[] = array('medicine' => $item_name, 'medicine_type' => $item->medicine_type, 'brand' => $item->brand, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
             endforeach;
 
             $dueDetails = OrderDue::where('order_id', $order_id)->orderBy('id', 'DESC')->take(1)->get();
@@ -1138,17 +1143,20 @@ class OrderController extends Controller
         $company_orders = [];
         if (sizeof($company_details)) {
             $company_id = $company_details[0]->id;
-            $company_orders = OrderItem::distinct('order_id')->where('company_id', $company_id)->pluck('order_id');
+            $company_orders = OrderItem::distinct('order_id')->pluck('order_id');
         }
 
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.payment_type', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
             ->where('orders.status', 'ACCEPTED')
-            ->where('orders.has_due', '=', 1)
+            ->where('orders.payment_type', 'DUE')
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
             ->leftjoin('users', 'users.id', '=', 'orders.created_by')
             ->when($invoice, function ($query, $invoice) {
                 return $query->where('orders.invoice', $invoice);
+            })
+            ->when($company_id, function ($query, $company_id) {
+                return $query->where('orders.company_id', $company_id);
             })
             ->when($sales_man, function ($query, $sales_man) {
                 return $query->where('orders.created_by', $sales_man);
@@ -1169,11 +1177,11 @@ class OrderController extends Controller
             $order_id = $order->id;
             $itemList = [];
 
-            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'medicine_companies.company_name', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
+            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'brands.name as brand', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
                 ->where('order_items.order_id', $order_id)
                 ->leftjoin('medicines', 'medicines.id', '=', 'order_items.medicine_id')
                 ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-                ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
+                ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
                 ->get();
 
             $dueDetails = OrderDue::where('order_id', $order_id)->orderBy('id', 'DESC')->take(1)->get();
@@ -1189,7 +1197,7 @@ class OrderController extends Controller
 
                 $item_name = $item->brand_name . ' ' . $item->strength;
 
-                $itemList[] = array('medicine' => $item_name, 'company_name' => $item->company_name, 'medicine_type' => $item->medicine_type, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
+                $itemList[] = array('medicine' => $item_name, 'brand' => $item->brand, 'medicine_type' => $item->medicine_type, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
             endforeach;
 
             $data[] = array('invoice' => $order->invoice, 'purchase_date' => $order->purchase_date, 'due_date' => $due_date, 'due_status' => $order->payment_type, 'created_by' => $order->created_by, 'discount' => $order->discount, 'total_amount' => $order->total_amount, 'total_payble_amount' => $order->total_payble_amount, 'total_advance_amount' => $order->total_advance_amount, 'total_due_amount' => $order->total_due_amount, 'company_name' => $order->company_name, 'items' => $itemList);
@@ -1332,7 +1340,7 @@ class OrderController extends Controller
                 'medicines.barcode',
                 'medicine_types.name as medicine_type',
                 'order_items.company_id',
-                'medicine_companies.company_name',
+                'brands.name as brand',
                 'order_items.quantity',
                 'order_items.exp_date',
                 'order_items.batch_no',
@@ -1341,11 +1349,12 @@ class OrderController extends Controller
                 'order_items.pieces_per_box',
                 'order_items.mrp',
                 'order_items.trade_price',
+                'order_items.percentage',
                 'order_items.box_vat'
             )
                 ->leftjoin('medicines', 'medicines.id', '=', 'order_items.medicine_id')
                 ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-                ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
+                ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
                 ->where('order_id', $order_id)->get();
 
             if (sizeof($orderItems)) {
@@ -1907,13 +1916,14 @@ class OrderController extends Controller
         $limit = $request->query('limit') ?? 500;
         $offset = (($pageNo - 1) * $limit);
 
-        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'medicine_companies.company_name')
+        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
             ->leftjoin('medicines', 'medicines.id', '=', 'products.medicine_id')
             ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-            ->leftjoin('medicine_companies', 'medicines.company_id', '=', 'medicine_companies.id');
+            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id');
 
+        $summary['quantity'] = $inventory->sum('products.quantity');
         $summary['total_mrp'] = $inventory->sum('products.mrp');
         $summary['total_tp'] = $inventory->sum('products.tp');
         $summary['total_profit'] = $summary['total_mrp'] - $summary['total_tp'];
@@ -2013,19 +2023,19 @@ class OrderController extends Controller
         $filter = $request->query('filter');
         $decode_filter = json_decode($filter, true);
 
-        $company = $decode_filter['company'] ? $decode_filter['company'] : 0;
+        // $company = $decode_filter['company'] ? $decode_filter['company'] : 0;
         $medicine_id =  $decode_filter['medicine_id'] ? $decode_filter['medicine_id'] : 0;
         $quantity =  $decode_filter['quantity'] ? $decode_filter['quantity'] : 0;
         $medicine_type_id =  $decode_filter['type_id'] ? $decode_filter['type_id'] : 0;
         $generic =  $decode_filter['generic'] ?? 0;
         $low_stock_qty = $decode_filter['low_stock_qty'];
 
-        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'medicine_companies.company_name')
+        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
-            ->when($company, function ($query, $company) {
-                return $query->where('products.company_id', $company);
-            })
+            // ->when($company, function ($query, $company) {
+            //     return $query->where('products.company_id', $company);
+            // })
             ->when($medicine_id, function ($query, $medicine_id) {
                 return $query->where('products.medicine_id', $medicine_id);
             })
@@ -2047,10 +2057,12 @@ class OrderController extends Controller
         if ($low_stock_qty) {
             $inventory = $inventory->whereRaw('products.quantity < products.low_stock_qty');
         }
+
         $inventory = $inventory->leftjoin('medicines', 'medicines.id', '=', 'products.medicine_id')
             ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-            ->leftjoin('medicine_companies', 'medicines.company_id', '=', 'medicine_companies.id')
+            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
             ->get();
+
 
         return response()->json(array(
             'data' => $inventory,
@@ -2067,26 +2079,27 @@ class OrderController extends Controller
         $filter = $request->query('filter');
         $decode_filter = json_decode($filter, true);
 
-        $company = $decode_filter['company'];
-        $company_details = MedicineCompany::where('company_name', $company)->get();
-        $company_id = 0;
-        if (sizeof($company_details)) {
-            $company_id = $company_details[0]->id;
-        }
+        // $company = $decode_filter['company'];
+        // $company_details = MedicineCompany::where('company_name', $company)->get();
+        // $company_id = 0;
+        // if (sizeof($company_details)) {
+        //     $company_id = $company_details[0]->id;
+        // }
 
         $medicine_id = $decode_filter['medicine_id'] ? $decode_filter['medicine_id'] : 0;
         $quantity = $decode_filter['quantity'] ? $decode_filter['quantity'] : 0;
         $medicine_type_id = $decode_filter['type_id'] ? $decode_filter['type_id'] : 0;
         $low_stock_qty = $decode_filter['low_stock_qty'];
 
-        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic',  'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'medicine_companies.company_name')
+        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
+            // $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic',  'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'medicine_companies.company_name')
             ->leftjoin('medicines', 'medicines.id', '=', 'products.medicine_id')
             ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-            ->leftjoin('medicine_companies', 'medicines.company_id', '=', 'medicine_companies.id')
+            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
-            ->when($company_id, function ($query, $company_id) {
-                return $query->where('products.company_id', $company_id);
-            })
+            // ->when($company_id, function ($query, $company_id) {
+            //     return $query->where('products.company_id', $company_id);
+            // })
             ->when($medicine_id, function ($query, $medicine_id) {
                 return $query->where('products.medicine_id', $medicine_id);
             })
@@ -2099,9 +2112,16 @@ class OrderController extends Controller
         if ($low_stock_qty) {
             $inventory = $inventory->whereRaw('products.quantity < products.low_stock_qty');
         }
+
+        $summary['quantity'] = $inventory->sum('products.quantity');
+        $summary['total_mrp'] = $inventory->sum('products.mrp');
+        $summary['total_tp'] = $inventory->sum('products.tp');
+        $summary['total_profit'] = $summary['total_mrp'] - $summary['total_tp'];
+
         $inventory = $inventory->orderBy('medicines.brand_name', 'ASC')->get();
 
         return response()->json(array(
+            'summary' => $summary,
             'data' => $inventory,
             'status' => 'Successful',
             'message' => 'Inventory List'

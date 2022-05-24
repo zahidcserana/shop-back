@@ -40,7 +40,7 @@ class StockBalanceController extends Controller
 
         foreach ($results as $row) {
             foreach ($row->stockBalanceItems as $item) {
-                $item->product = ['name' => $item->medicine->brand_name, 'strength' => $item->medicine->strength, 'type' => $item->medicine->medicineType->name];
+                $item->product = ['name' => $item->medicine->brand_name, 'brand' => $item->medicine->brand->name??'', 'type' => $item->medicine->medicineType->name ?? ''];
                 unset($item->medicine);
             }
         }
@@ -72,7 +72,7 @@ class StockBalanceController extends Controller
 
                 DB::commit();
             } else {
-                if (!$stockBalance->date_open < Date('Y-m-d')) {
+                if (!($stockBalance->date_open < Date('Y-m-d'))) {
                     return response()->json(['success' => false, 'error' => 'Already opened']);
                 }
                 $stockBalance->date_close = Date('Y-m-d');

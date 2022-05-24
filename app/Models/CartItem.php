@@ -24,10 +24,10 @@ class CartItem extends Model
         $item = array(
             'medicine_id' => $medicineData->id,
             'product_type' => $medicineData->medicine_type_id,
-            'company_id' => $medicineData->company_id,
+            // 'company_id' => $medicineData->company_id,
             'quantity' => $data['quantity'],
-            'batch_no' => $medicineInfo ? $medicineInfo->batch_no : null,
-            'exp_date' => $medicineInfo? $medicineInfo->exp_date : null,
+            // 'batch_no' => $medicineInfo ? $medicineInfo->batch_no : null,
+            // 'exp_date' => $medicineInfo? $medicineInfo->exp_date : null,
             'cart_id' => $data['cart_id'],
             'unit_type' => $data['unit_type'] ?? 'PCS',
             'unit_price' => $medicineInfo ? $medicineInfo->mrp : 0,
@@ -36,6 +36,7 @@ class CartItem extends Model
         );
 
         $cartItem = CartItem::insertGetId($item);
+
         if ($cartItem) {
             return true;
         }

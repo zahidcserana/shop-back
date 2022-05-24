@@ -80,7 +80,7 @@ class ProductController extends Controller
 
     $total = $query->count();
     $products = $query
-      ->select('medicines.id', 'medicines.id as medicine_id', 'brand_id', 'medicines.generic_name', 'medicines.medicine_type_id', 'medicines.brand_name', 'medicines.strength', 'medicine_types.name as type', 'brands.name as brand')
+      ->select('medicines.id', 'medicines.id as medicine_id', 'brand_id', 'medicines.generic_name', 'medicines.barcode', 'medicines.medicine_type_id', 'medicines.brand_name', 'medicines.strength', 'medicine_types.name as type', 'brands.name as brand')
       ->orderBy('medicines.brand_name', 'asc')
       ->offset($offset)
       ->limit($limit)

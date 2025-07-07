@@ -28,6 +28,10 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
 {
+    private $date_open;
+    private $date_close;
+    private $pharmacy_branch_id;
+
     public function downloadPDF($orderId)
     {
         $orderModel = new Order();
@@ -1908,30 +1912,108 @@ class OrderController extends Controller
         ));
     }
 
+    private function getSaleQty($productsSaleQty, $medicineIds)
+    {
+        $items = Sale::where('sales.pharmacy_branch_id', $this->pharmacy_branch_id)
+            ->whereBetween('sales.sale_date', [$this->date_open, $this->date_close])
+            ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+            ->whereIn('sale_items.medicine_id', $medicineIds)
+            ->select('sale_items.medicine_id', DB::raw('SUM(sale_items.quantity) as total_qty'))
+            ->groupBy('sale_items.medicine_id')
+            ->get();
+
+        foreach ($items as $item) {
+            $productsSaleQty[$item->medicine_id] = $item->total_qty;
+        }
+
+        return $productsSaleQty;
+    }
+
+    private function getPurchaseQty($productsPurchaseQty, $medicineIds)
+    {
+        $items = Order::where('orders.pharmacy_branch_id', $this->pharmacy_branch_id)
+            ->whereBetween('orders.purchase_date', [$this->date_open, $this->date_close])
+            ->join('order_items', 'orders.id', '=', 'order_items.order_id')
+            ->whereIn('order_items.medicine_id', $medicineIds)
+            ->select('order_items.medicine_id', DB::raw('SUM(order_items.quantity) as total_qty'))
+            ->groupBy('order_items.medicine_id')
+            ->get();
+
+        foreach ($items as $item) {
+            $productsPurchaseQty[$item->medicine_id] = $item->total_qty;
+        }
+
+        return $productsPurchaseQty;
+    }
+
+
     public function productList(Request $request)
     {
-        $user = $request->auth;
-        $data = $request->query();
+
+        $user = $request->auth;        
         $pageNo = $request->query('page_no') ?? 1;
         $limit = $request->query('limit') ?? 500;
         $offset = (($pageNo - 1) * $limit);
+        $this->pharmacy_branch_id = $user->pharmacy_branch_id;
 
-        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
+        if (!empty($request['date_range'])) {
+            $dateRange = explode(',', $request['date_range']);
+            $this->date_open = $dateRange[0] ?? now()->toDateString();
+            $this->date_close = $dateRange[1] ?? $this->date_open;
+        }
+
+        $baseQuery = Product::select(
+                'products.id',
+                'products.quantity',
+                'products.mrp',
+                'products.tp',
+                'products.medicine_id',
+                'products.pharmacy_branch_id',
+                'medicines.brand_name as medicine_name',
+                'medicines.generic_name as generic',
+                'medicines.barcode',
+                'medicines.strength',
+                'medicine_types.name as medicine_type',
+                'products.company_id',
+                'products.low_stock_qty',
+                'brands.name as brand'
+            )
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
-            ->leftjoin('medicines', 'medicines.id', '=', 'products.medicine_id')
-            ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-            ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id');
+            ->leftJoin('medicines', 'medicines.id', '=', 'products.medicine_id')
+            ->leftJoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
+            ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id');
 
-        $summary['quantity'] = $inventory->sum('products.quantity');
-        $summary['total_mrp'] = $inventory->sum('products.mrp');
-        $summary['total_tp'] = $inventory->sum('products.tp');
+        // Clone for calculating aggregates
+        $summaryQuery = (clone $baseQuery);
+        $summary['quantity'] = (clone $summaryQuery)->sum('products.quantity');
+        $summary['total_mrp'] = (clone $summaryQuery)->selectRaw('SUM(products.quantity * products.mrp) as total_mrp')->value('total_mrp');
+        $summary['total_tp'] = (clone $summaryQuery)->selectRaw('SUM(products.quantity * products.tp) as total_tp')->value('total_tp');
         $summary['total_profit'] = $summary['total_mrp'] - $summary['total_tp'];
-        $total = $inventory->count();
 
-        $inventoryData = $inventory->offset($offset)->limit($limit)->get();
+        $total = (clone $baseQuery)->count();
 
-        return response()->json(array(
+        $inventoryData = $baseQuery->offset($offset)->limit($limit)->get();
+
+        // Collect medicine IDs
+        $medicineIds = $inventoryData->pluck('medicine_id')->toArray();
+
+        // Prepare zeroed maps
+        $productsSaleQty = array_fill_keys($medicineIds, 0);
+        $productsPurchaseQty = array_fill_keys($medicineIds, 0);
+
+        // Get sale & purchase quantities
+        $productsSaleQty = $this->getSaleQty($productsSaleQty, $medicineIds);
+        $productsPurchaseQty = $this->getPurchaseQty($productsPurchaseQty, $medicineIds);
+
+        // Append quantity_in and quantity_out
+        $inventoryData->transform(function ($item) use ($productsSaleQty, $productsPurchaseQty) {
+            $item->quantity_out = $productsSaleQty[$item->medicine_id] ?? 0;
+            $item->quantity_in = $productsPurchaseQty[$item->medicine_id] ?? 0;
+            return $item;
+        });
+
+        return response()->json([
             'data' => $inventoryData,
             'status' => 'Successful',
             'summary' => $summary,
@@ -1939,7 +2021,7 @@ class OrderController extends Controller
             'total' => $total,
             'page_no' => $pageNo,
             'limit' => $limit,
-        ));
+        ]);
     }
 
     public function lowStockQtyupdate(Request $request)

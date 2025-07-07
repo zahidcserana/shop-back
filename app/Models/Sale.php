@@ -157,10 +157,8 @@ class Sale extends Model
         $data['customer_name'] = $order->customer_name;
         $data['customer_mobile'] = $order->customer_mobile;
         $data['status'] = $order->status;
-        // $data['image'] = $order->file_name ? 'assets/prescription_image'. $order->file_name:'';
 
         $data['company'] = '';
-
         $data['mr_name'] = '';
 
         $createdBy = DB::table('users')->where('id', $order->created_by)->first();
@@ -178,6 +176,8 @@ class Sale extends Model
         $data['branch_mobile'] = $pharmacyBranch->branch_mobile;
 
         $items = array();
+        $totalProfit = 0;
+
         foreach ($orderItems as $item) {
             $aData = array();
             $aData['id'] = $item->id;
@@ -196,20 +196,32 @@ class Sale extends Model
             $aData['exp_date'] = date("M, Y", strtotime($item->exp_date));
 
             $medicine = $item->medicine;
-            $aData['medicine'] = $medicine->brand_name;
-            $aData['medicine_power'] = $medicine->strength;
+            $aData['medicine'] = $medicine->brand_name ?? '';
+            $aData['medicine_power'] = $medicine->strength ?? '';
             $aData['brand'] = $medicine->brand->name ?? '';
             $aData['medicine_type'] = $medicine->medicineType->name ?? '';
-
-            // $company = MedicineCompany::findOrFail($item->company_id);
             $aData['company'] = '';
+
+            // Get TP & MRP from Product table
+            $product = \App\Models\Product::where('medicine_id', $item->medicine_id)->first();
+            $tp = $product->tp ?? 0;
+            $mrp = $product->mrp ?? 0;
+
+            // Profit = (MRP - TP) * quantity
+            $profit = ($mrp - $tp) * $item->quantity;
+            $aData['profit'] = round($profit, 2); // optional rounding
+
+            $totalProfit += $profit;
 
             $items[] = $aData;
         }
+
         $data['order_items'] = $items;
+        $data['total_profit'] = round($totalProfit, 2); // ✅ Final total profit
 
         return $data;
     }
+
 
     /** Manual Order */
 

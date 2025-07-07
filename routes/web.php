@@ -4,13 +4,17 @@ use Illuminate\Support\Facades\Hash;
 
 $router->get('/', function () use ($router) {
     // $aa = base64_encode("6DAA0C0782E44BA5A4C3AD8A37724FA6:AcZnJGHA9yeqVF8N4JwRIZVnp_0jfREOLBWcQDLPnhW_zTfX");
-    // dd(Hash::make('secret'));
+    // dd(Hash::make('pFashion'));
+
     return $router->app->version();
 });
 
 $router->group(
     ['prefix' => 'api'],
     function () use ($router) {
+        $router->get('/', function () use ($router) {
+            return $router->app->version();
+        });
 
         $router->post('auth/login', ['uses' => 'Auth\AuthController@userAuthenticate']);
         $router->post('users/verify', ['uses' => 'UserController@verifyUser']);

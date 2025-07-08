@@ -1955,6 +1955,15 @@ class OrderController extends Controller
         $limit = $request->query('limit') ?? 500;
         $offset = (($pageNo - 1) * $limit);
         $this->pharmacy_branch_id = $user->pharmacy_branch_id;
+        $company_id = 0;
+
+        if (!empty($request['company'])) {
+            $companyDetails = MedicineCompany::where('company_name', $request['company'])->first();
+
+            if ($companyDetails) {
+                $company_id = $companyDetails->id;
+            }
+        }
 
         if (!empty($request['date_range'])) {
             $dateRange = explode(',', $request['date_range']);
@@ -1982,7 +1991,13 @@ class OrderController extends Controller
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
             ->leftJoin('medicines', 'medicines.id', '=', 'products.medicine_id')
             ->leftJoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
-            ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id');
+            ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
+            ->when($company_id, function ($query, $company_id) {
+                return $query->leftJoin('order_items', 'products.medicine_id', '=', 'order_items.medicine_id')
+                        ->leftJoin('orders', 'order_items.order_id', '=', 'orders.id')
+                        ->where('orders.company_id', $company_id)
+                        ->groupBy('products.medicine_id');
+            });
 
         // Clone for calculating aggregates
         $summaryQuery = (clone $baseQuery);

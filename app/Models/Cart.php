@@ -125,7 +125,7 @@ class Cart extends Model
             // $aData['company'] = ['id'=>$company['id'], 'name' =>$company['company_name']];
 
             $medicine = $cartItem->medicine;
-            $aData['medicine'] = ['strength' => $medicine->strength, 'brand_name' => $medicine->brand_name, 'brand' => $medicine->brand->name, 'type' => substr($medicine->medicineType->name, 0, 3)];
+            $aData['medicine'] = ['strength' => $medicine->strength, 'brand_name' => $medicine->brand_name, 'brand' => $medicine->brand?->name, 'type' => substr($medicine->medicineType?->name, 0, 3)];
             $items[] = $aData;
         }
         $data['cart_items'] = $items;

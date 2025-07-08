@@ -177,6 +177,7 @@ class Sale extends Model
 
         $items = array();
         $totalProfit = 0;
+        $totalQty = 0;
 
         foreach ($orderItems as $item) {
             $aData = array();
@@ -206,18 +207,22 @@ class Sale extends Model
             $product = \App\Models\Product::where('medicine_id', $item->medicine_id)->first();
             $tp = $product->tp ?? 0;
             $mrp = $product->mrp ?? 0;
+            $aData['tp'] = $tp;
+
 
             // Profit = (MRP - TP) * quantity
             $profit = ($mrp - $tp) * $item->quantity;
             $aData['profit'] = round($profit, 2); // optional rounding
 
             $totalProfit += $profit;
+            $totalQty += $item->quantity;
 
             $items[] = $aData;
         }
 
         $data['order_items'] = $items;
-        $data['total_profit'] = round($totalProfit, 2); // ✅ Final total profit
+        $data['total_qty'] = $totalQty;
+        $data['total_profit'] = round($totalProfit, 2);
 
         return $data;
     }

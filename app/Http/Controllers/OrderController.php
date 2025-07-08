@@ -1967,8 +1967,12 @@ class OrderController extends Controller
 
         if (!empty($request['date_range'])) {
             $dateRange = explode(',', $request['date_range']);
-            $this->date_open = $dateRange[0] ?? now()->toDateString();
-            $this->date_close = $dateRange[1] ?? $this->date_open;
+            $this->date_open = Carbon::parse($dateRange[0] ?? now())->startOfDay();
+            $this->date_close = Carbon::parse($dateRange[1] ?? $this->date_open)->endOfDay();
+        } else {
+            $today = Carbon::today();
+            $this->date_open = $today->copy()->startOfDay();
+            $this->date_close = $today->copy()->endOfDay();
         }
 
         $baseQuery = Product::select(

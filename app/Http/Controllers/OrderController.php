@@ -2024,13 +2024,22 @@ class OrderController extends Controller
         // Get sale & purchase quantities
         $productsSaleQty = $this->getSaleQty($productsSaleQty, $medicineIds);
         $productsPurchaseQty = $this->getPurchaseQty($productsPurchaseQty, $medicineIds);
+        $quantityInTotal = 0;
+        $quantityOutTotal = 0;
 
         // Append quantity_in and quantity_out
-        $inventoryData->transform(function ($item) use ($productsSaleQty, $productsPurchaseQty) {
+        $inventoryData->transform(function ($item) use ($productsSaleQty, $productsPurchaseQty, &$quantityInTotal, &$quantityOutTotal) {
             $item->quantity_out = $productsSaleQty[$item->medicine_id] ?? 0;
             $item->quantity_in = $productsPurchaseQty[$item->medicine_id] ?? 0;
+
+            $quantityInTotal += $item->quantity_in;
+            $quantityOutTotal += $item->quantity_out;
+
             return $item;
         });
+
+        $summary['quantity_in_total'] = $quantityInTotal;
+        $summary['quantity_out_total'] = $quantityOutTotal;
 
         return response()->json([
             'data' => $inventoryData,

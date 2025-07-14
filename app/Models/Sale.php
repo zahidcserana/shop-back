@@ -173,6 +173,7 @@ class Sale extends Model
         $data['pharmacy_address'] = $pharmacyBranch->branch_full_address;
         $data['branch_area'] = $pharmacyBranch->branch_area;
         $data['branch_city'] = $pharmacyBranch->branch_city;
+        $data['branch_name'] = $pharmacyBranch->branch_name;
         $data['branch_mobile'] = $pharmacyBranch->branch_mobile;
 
         $items = array();

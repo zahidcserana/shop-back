@@ -1,1 +1,1 @@
-ALTER TABLE `orders` ADD `server_item_id` INT NULL AFTER `is_sync`;
+ALTER TABLE `medicine_companies` ADD `pharmacy_id` INT NULL AFTER `id`; 

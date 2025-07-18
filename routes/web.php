@@ -102,6 +102,7 @@ $router->group(
                 $router->get('sale/{saleId}', ['uses' => 'SaleController@view']);
                 $router->get('sales', ['uses' => 'SaleController@index']);
                 $router->get('sales/report', ['uses' => 'SaleController@report']);
+                $router->get('sales/report-days', ['uses' => 'SaleController@dayWiseReport']);
                 $router->get('sales/due', ['uses' => 'SaleController@saleDueList']);
                 $router->post('sales/payout', ['uses' => 'SaleController@payout']);
                 $router->post('sales/discount', ['uses' => 'SaleController@discount']);

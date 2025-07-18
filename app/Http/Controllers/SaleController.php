@@ -385,6 +385,40 @@ class SaleController extends Controller
       ]);
   }
 
+  public function dayWiseReport(Request $request)
+  {
+      $yearMonth = $request->query('year_month', date('Y-m'));
+      [$year, $month] = explode('-', $yearMonth);
+
+      // Start and end dates of the month
+      $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+      $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+
+      // Fetch actual sales data grouped by date
+      $rawData = Sale::query()
+          ->selectRaw('DATE(created_at) as sale_date, SUM(total_payble_amount) as total_amount')
+          ->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+          ->where('status', '<>', 'CANCEL')
+          ->whereBetween('created_at', [$startDate, $endDate])
+          ->groupBy(DB::raw('DATE(created_at)'))
+          ->pluck('total_amount', 'sale_date');
+
+      // Fill missing days with 0 amount
+      $days = [];
+      $cursor = $startDate->copy();
+      while ($cursor <= $endDate) {
+          $dateStr = $cursor->format('Y-m-d');
+          $days[] = [
+              'date' => $cursor->format('d/m/Y'),
+              'amount' => (float) ($rawData[$dateStr] ?? 0),
+          ];
+          $cursor->addDay();
+      }
+
+      return response()->json($days);
+  }
+
+
   public function report(Request $request)
   {
     $data = $request->query();

@@ -349,4 +349,9 @@ class Order extends Model
         $order->update($data);
         return true;
     }
+
+    public function getCreatedAtAttribute($value)
+    {
+        return \Carbon\Carbon::parse($value)->timezone('Asia/Dhaka');
+    }
 }

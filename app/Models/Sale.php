@@ -357,5 +357,10 @@ class Sale extends Model
     {
         return $this->belongsTo('App\Models\MedicineCompany');
     }
+
+    public function getCreatedAtAttribute($value)
+    {
+        return \Carbon\Carbon::parse($value)->timezone('Asia/Dhaka');
+    }
     /** **** **** **** **** **** **** */
 }

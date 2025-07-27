@@ -45,13 +45,16 @@ class ProductController extends Controller
   }
   public function index(Request $request)
   {
+    $user = $request->auth;
+    $client_id = $user->pharmacy_id;
+    $shop_id = $user->pharmacy_branch_id;
+
     $data = $request->query();
     $pageNo = $request->query('page_no') ?? 1;
     $limit = $request->query('limit') ?? 500;
     $offset = (($pageNo - 1) * $limit);
     $where = array();
-    $user = $request->auth;
-    // $where = array_merge(array(['sales.pharmacy_branch_id', $user->pharmacy_branch_id]), $where);
+    $where = array_merge(array(['products.pharmacy_branch_id', $shop_id]), $where);
     if (!empty($data['generic'])) {
       $where = array_merge(array(['medicines.generic_name', 'LIKE', $data['generic'] . '%']), $where);
     }
@@ -73,10 +76,10 @@ class ProductController extends Controller
       $where = array_merge(array([DB::raw('DATE(created_at)'), '>=', $dateRange[0]]), $where);
       $where = array_merge(array([DB::raw('DATE(created_at)'), '<=', $dateRange[1]]), $where);
     }
-    $query = Medicine::where($where)
-      // ->join('medicine_companies', 'medicines.company_id', '=', 'medicine_companies.id')
-      ->join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
-      ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id');
+    $query = Medicine::join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
+      ->join('products', 'products.medicine_id', '=', 'medicines.id')
+      ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
+      ->where($where);
 
     $total = $query->count();
     $products = $query

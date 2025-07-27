@@ -77,8 +77,12 @@ class MedicineController extends Controller
         return response()->json($data);
     }
 
-    public function getExpiryMedicine()
+    public function getExpiryMedicine(Request $request)
     {
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+        
         $today = date('Y-m-d');
         $exp1M = date('Y-m-d', strtotime("+1 months", strtotime(date('Y-m-d'))));
         $exp3M = date('Y-m-d', strtotime("+3 months", strtotime(date('Y-m-d'))));
@@ -97,15 +101,19 @@ class MedicineController extends Controller
             ->get();
 
         $all_sell_item = SaleItem::select('brands.name as brand', 'sale_items.medicine_id', 'medicines.brand_name', 'medicines.generic_name', 'medicines.strength', DB::raw('SUM(sale_items.quantity) as quantity'))
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->leftjoin('medicines', 'medicines.id', '=', 'sale_items.medicine_id')
             ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
+            ->where('sales.pharmacy_branch_id', $shop_id)
             ->groupBy('sale_items.medicine_id')
             ->orderBy('quantity', 'DESC')
             ->get();
 
         $top_company = SaleItem::select('brands.name as brand', DB::raw('SUM(sale_items.sub_total) as amount'))
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->leftjoin('medicines', 'medicines.id', '=', 'sale_items.medicine_id')
             ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
+            ->where('sales.pharmacy_branch_id', $shop_id)
             ->groupBy('brands.id')
             ->orderBy('amount', 'DESC')
             ->get();
@@ -203,12 +211,18 @@ class MedicineController extends Controller
 
     public function searchByPharmacy(Request $request)
     {
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
         $str = $request->input('search');
         $openSale = true;
         // $pharmacyMedicineIds = $openSale ? false : DB::table('inventories')->select('medicine_id')->distinct()->pluck('medicine_id');
 
-        $medicines = Medicine::where('brand_name', 'like', $str . '%')
-            // ->orWhere('barcode', 'like', $str . '%')
+        $medicines = Medicine::join('products', 'products.medicine_id', '=', 'medicines.id')
+            ->where('products.pharmacy_branch_id', $shop_id)
+            ->where('brand_name', 'like', $str . '%')
+            ->orWhere('barcode', 'like', $str . '%')
             // ->when($pharmacyMedicineIds, function ($query, $pharmacyMedicineIds) {
             //     return $query->whereIn('id', $pharmacyMedicineIds);
             // })

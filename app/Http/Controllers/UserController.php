@@ -8,6 +8,7 @@ use Firebase\JWT\JWT;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+    use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -27,19 +28,29 @@ class UserController extends Controller
 
     public function create(Request $request)
     {
-        $user = $request->auth;
-        $this->validate($request, [
-            'name' => 'required',
-            'email' => 'unique:users,email',
-        ]);
-        $data = $request->all();
-        $data['pharmacy_branch_id'] = $user->pharmacy_branch_id;
-        $data['pharmacy_id'] = $user->pharmacy_id;
-        $userModel = new User();
-        $user = $userModel->create($data);
+        try {
+            $user = $request->auth;
 
-        $users = User::where('pharmacy_branch_id', $user->pharmacy_branch_id)->get();
-        return response()->json(['success' => true, 'data' => $users]);
+            $this->validate($request, [
+                'name' => 'required',
+                'email' => 'required|email|unique:users,email',
+            ]);
+
+            $data = $request->all();
+            $data['pharmacy_branch_id'] = $user->pharmacy_branch_id;
+            $data['pharmacy_id'] = $user->pharmacy_id;
+
+            $userModel = new User();
+            $userModel->createUser($data);
+
+            $users = User::where('pharmacy_branch_id', $user->pharmacy_branch_id)->get();
+            return response()->json(['success' => true, 'data' => $users]);
+
+        } catch (ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->errors()], 422);
+        } catch (\Throwable $th) {
+            return response()->json(['success' => false, 'message' => 'An unexpected error occurred.'], 500);
+        }
     }
 
     public function password(Request $request)

@@ -26,26 +26,29 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
         'password',
     ];
 
-    public function create($data)
+    public function createUser(array $data)
     {
-        $lastInsertId = $this::orderBy('id', 'desc')->first();
-        $password =  $data['password'] ?? '123456';
-        $userData = array(
+        $password = $data['password'] ?? '123456';
+
+        $user = User::create([
             'name' => $data['name'],
-            'pharmacy_branch_id' => $data['pharmacy_branch_id'] ?? '',
-            'pharmacy_id' => $data['pharmacy_id'] ?? '',
+            'pharmacy_branch_id' => $data['pharmacy_branch_id'],
+            'pharmacy_id' => $data['pharmacy_id'],
             'user_type' => $data['user_type'] ?? '',
-            'user_mobile' => $data['user_mobile']??'',
-            'email' => $data['email']??'',
-            // 'password' => Hash::make('dgda@' . $data['user_mobile']),
+            'user_mobile' => $data['user_mobile'] ?? '',
+            'email' => $data['email'] ?? '',
             'password' => Hash::make($password),
-            'userid' => $lastInsertId->id + 1 . Carbon::now()->timestamp,
             'verification_pin' => rand(1000, 4000),
-        );
+        ]);
 
-        $userId = $this::insertGetId($userData);
+        $user->userid = substr(sprintf('%03d%02d%04d',
+            $user->pharmacy_id,
+            $user->pharmacy_branch_id,
+            $user->id
+        ), 0, 9);
 
-        $user = $this::find($userId);
+        $user->save();
+
         return $user;
     }
 }

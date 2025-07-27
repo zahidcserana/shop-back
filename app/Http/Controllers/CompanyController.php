@@ -8,9 +8,13 @@ use DB;
 
 class CompanyController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $companies = MedicineCompany::all();
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
+        $companies = MedicineCompany::where('pharmacy_id', $client_id)->get();
 
         $data = array();
         foreach ($companies as $company) {
@@ -35,14 +39,13 @@ class CompanyController extends Controller
         return response()->json($data);
     }
 
-    public function companyList()
+    public function companyList(Request $request)
     {
-        return response()->json($this->getCompanyList());
-    }
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
 
-    public function getCompanyList()
-    {
-        $companies = MedicineCompany::orderBy('company_name', 'asc')->get();
+        $companies = MedicineCompany::where('pharmacy_id', $client_id)->orderBy('company_name', 'asc')->get();
 
         $data = array();
         foreach ($companies as $company) {
@@ -56,20 +59,26 @@ class CompanyController extends Controller
                 'status' => $company->company_active_status
             );
         }
-        return $data;
+        return response()->json($data);
     }
 
     public function store(Request $request)
     {
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
         $addMedicineCompany = new MedicineCompany();
         $addMedicineCompany->company_name = $request->name;
         $addMedicineCompany->company_address = $request->address;
         $addMedicineCompany->company_contact_person = $request->contact_person;
         $addMedicineCompany->company_contact_person_mobile = $request->mobile;
         $addMedicineCompany->company_contact_person_email = $request->email;
+        $addMedicineCompany->pharmacy_id = $client_id;
+        $addMedicineCompany->pharmacy_branch_id = $shop_id;
         $addMedicineCompany->save();
 
-        return response()->json(['success' => true, 'message' => "Supplier saved successfully!", 'data' => $this->getCompanyList()]);
+        return response()->json(['success' => true, 'message' => "Supplier saved successfully!"]);
     }
 
     public function update(Request $request, $id)
@@ -83,13 +92,13 @@ class CompanyController extends Controller
         $medicineCompany->company_active_status = $request->status;
         $medicineCompany->save();
 
-        return response()->json(['success' => true, 'message' => "Supplier updated successfully!", 'data' => $this->getCompanyList()]);
+        return response()->json(['success' => true, 'message' => "Supplier updated successfully!"]);
     }
 
     public function destroy($id)
     {
         if (MedicineCompany::destroy($id)) {
-            return response()->json(['success' => true, 'message' => "Supplier deleted successfully!", 'data' => $this->getCompanyList()]);
+            return response()->json(['success' => true, 'message' => "Supplier deleted successfully!"]);
         }
 
         return response()->json(['success' => false]);

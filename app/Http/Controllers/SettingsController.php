@@ -11,6 +11,10 @@ class SettingsController extends Controller
 {
     public function typeSave(Request $request)
     {
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
         if ($request->type_id) {
             $UpdateMedicineType = MedicineType::find($request->type_id);;
             $UpdateMedicineType->name = $request->type;
@@ -23,6 +27,8 @@ class SettingsController extends Controller
             if (!$exist) {
                 $medicineType = new MedicineType();
                 $medicineType->name = $request->type;
+                $medicineType->pharmacy_id = $client_id;
+                $medicineType->pharmacy_branch_id = $shop_id;
                 $medicineType->save();
 
                 return response()->json(['status' => true, 'message' => "Product Type Added Successfully!"], 201);
@@ -36,7 +42,11 @@ class SettingsController extends Controller
 
     public function types(Request $request)
     {
-        $typeList = MedicineType::select('id', 'name')->orderBy('name', 'asc')->get();
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
+        $typeList = MedicineType::select('id', 'name')->where('pharmacy_id', $client_id)->orderBy('name', 'asc')->get();
         return response()->json($typeList);
     }
 
@@ -48,12 +58,20 @@ class SettingsController extends Controller
 
     public function brands(Request $request)
     {
-        $list = Brand::select('id', 'name')->orderBy('name', 'asc')->get();
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
+        $list = Brand::select('id', 'name')->where('pharmacy_id', $client_id)->orderBy('name', 'asc')->get();
         return response()->json($list);
     }
 
     public function brandSave(Request $request)
     {
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
+
         if ($request->brand_id) {
             $brand = Brand::find($request->brand_id);;
             $brand->name = $request->name;
@@ -66,6 +84,8 @@ class SettingsController extends Controller
             if (!$exist) {
                 $brand = new Brand();
                 $brand->name = $request->name;
+                $brand->pharmacy_id = $client_id;
+                $brand->pharmacy_branch_id = $shop_id;
                 $brand->save();
 
                 return response()->json(['status' => true, 'message' => "Product Brand Added Successfully!"], 201);

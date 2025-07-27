@@ -14,14 +14,16 @@ class DashboardController extends Controller
     public function summary(Request $request)
     {
         $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
 
-        $pharmacy = DB::table('pharmacy_branches')->count();
-        $sale = DB::table('sales')->where('pharmacy_branch_id', $user->pharmacy_branch_id)->count();
-        $order = DB::table('orders')->where('pharmacy_branch_id', $user->pharmacy_branch_id)->count();
-        $company = DB::table('orders')->where('pharmacy_branch_id', $user->pharmacy_branch_id)->select('company_id')->distinct()->get()->count();
-        $medicine = DB::table('order_items')->select('medicine_id')->distinct()->get()->count();
-        $customer = DB::table('sales')->select('customer_mobile')->distinct()->get()->count();
-        $entry = DB::table('order_items')->count();
+        $pharmacy = DB::table('pharmacy_branches')->where('pharmacy_id', $client_id)->count();
+        $sale = DB::table('sales')->where('pharmacy_branch_id', $shop_id)->count();
+        $order = DB::table('orders')->where('pharmacy_branch_id', $shop_id)->count();
+        $medicine = DB::table('products')->where('pharmacy_branch_id', $shop_id)->count();
+        $company = DB::table('orders')->where('pharmacy_branch_id', $shop_id)->select('company_id')->distinct()->get()->count();
+        $customer = DB::table('sales')->select('customer_mobile')->where('pharmacy_branch_id', $shop_id)->distinct()->get()->count();
+        $entry = DB::table('order_items')->join('orders', 'orders.id', '=', 'order_items.order_id')->where('pharmacy_branch_id', $shop_id)->count();
 
         $data = array();
         $data['total_customer'] = $customer;

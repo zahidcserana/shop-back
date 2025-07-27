@@ -209,35 +209,37 @@ class MedicineController extends Controller
         return response()->json($data);
     }
 
-    public function searchByPharmacy(Request $request)
+    public function searchByShop(Request $request)
     {
         $user = $request->auth;
-        $client_id = $user->pharmacy_id;
-        $shop_id = $user->pharmacy_branch_id;
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        $str = $request->input('search');
-        $openSale = true;
-        // $pharmacyMedicineIds = $openSale ? false : DB::table('inventories')->select('medicine_id')->distinct()->pluck('medicine_id');
+        $shop_id = $user->pharmacy_branch_id;
+        $str = $request->input('search', '');
 
         $medicines = Medicine::join('products', 'products.medicine_id', '=', 'medicines.id')
             ->where('products.pharmacy_branch_id', $shop_id)
-            ->where('brand_name', 'like', $str . '%')
-            ->orWhere('barcode', 'like', $str . '%')
-            // ->when($pharmacyMedicineIds, function ($query, $pharmacyMedicineIds) {
-            //     return $query->whereIn('id', $pharmacyMedicineIds);
-            // })
+            ->where(function ($q) use ($str) {
+                $q->where('brand_name', 'like', $str . '%')
+                ->orWhere('barcode', 'like', $str . '%');
+            })
             ->orderBy('brand_name', 'asc')
+            ->select('medicines.*')
             ->get();
 
-        $data = array();
-        foreach ($medicines as $medicine) {
-            // $company = DB::table('medicine_companies')->where('id', $medicine->company_id)->first();
-            // $medicineType = $medicine->product_type == 1 ? $medicine->medicineType->name : ' CP';
-            // $medicineStr = $medicine->brand_name . ' (' . $medicine->strength . ',' . $medicineType . ')';
-            $data[] = ['id' => $medicine->id, 'name' => $medicine->brand_name, 'company' => ''];
-        }
+        $data = $medicines->map(function ($medicine) {
+            return [
+                'id' => $medicine->id,
+                'name' => $medicine->brand_name,
+                'company' => '',
+            ];
+        });
+
         return response()->json($data);
     }
+
 
     public function searchMedicineFromInventory(Request $request)
     {

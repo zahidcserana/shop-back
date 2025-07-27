@@ -107,7 +107,7 @@ $router->group(
                 $router->post('sales/payout', ['uses' => 'SaleController@payout']);
                 $router->post('sales/discount', ['uses' => 'SaleController@discount']);
                 $router->get('reports/sale/latest', ['uses' => 'SaleController@latestSale']);
-                $router->get('medicines/search/sale', ['uses' => 'MedicineController@searchByPharmacy']);
+                $router->get('medicines/search/sale', ['uses' => 'MedicineController@searchByShop']);
                 $router->post('medicines/batch', ['uses' => 'MedicineController@batchList']);
                 $router->post('medicines/quantity', ['uses' => 'MedicineController@getAvailableQuantity']);
 

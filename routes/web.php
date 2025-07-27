@@ -221,6 +221,26 @@ $router->group(
                 $router->get('sales/persons/list', ['uses' => 'HomeController@getSalePersonsList']);
             }
         );
+
+        $router->group(
+            ['prefix' => 'admin'],
+            function () use ($router) {
+                $router->get('/', function () use ($router) {
+                    return $router->app->version();
+                });
+
+                $router->post('login', ['uses' => 'Auth\AuthController@adminAuthenticate']);
+            
+                $router->group(
+                    ['middleware' => 'jwt.auth'],
+                    function () use ($router) {
+                        $router->get('shops', ['uses' => 'AdminController@shops']);
+                        $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
+                        $router->get('branches', ['uses' => 'AdminController@branches']);
+                    }
+                );
+            }
+        );
     }
 );
 /** Script for database migration */

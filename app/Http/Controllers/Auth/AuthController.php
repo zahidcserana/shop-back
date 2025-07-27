@@ -71,4 +71,45 @@ class AuthController extends Controller
             'error' => 'Login details provided does not exit.'
         ], 403);
     }
+
+    public function adminAuthenticate(User $user)
+    {
+        $this->validate($this->request, [
+            'email' => 'required',
+            'password' => 'required'
+        ]);
+        $user = User::where('email', $this->request->email)->first();
+        if (!$user) {
+
+            return response()->json([
+                'error' => 'User does not exist.'
+            ], 401);
+        }
+
+        // Verify the password and generate the token
+        if (Hash::check($this->request->password, $user->password)) {
+            if (!$user->is_admin) {
+                return response()->json([
+                    'error' => 'Admin does not exist.'
+                ], 401);
+            }
+
+            return response()->json([
+                'status' => 200,
+                'message' => 'Login Successful',
+                'data' => [
+                    'token' => $this->jwt($user),
+                    'email' => $user->email,
+                    'id' => $user->id,
+                    'user_type' => $user->user_type,
+                    'pos_version' => 1,
+                    'config' => ''
+                ]
+            ], 200);
+        }
+        return response()->json([
+            'status' => 403,
+            'error' => 'Login details provided does not exit.'
+        ], 403);
+    }
 }

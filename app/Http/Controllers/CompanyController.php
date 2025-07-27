@@ -11,15 +11,9 @@ class CompanyController extends Controller
     public function index(Request $request)
     {
         $user = $request->auth;
-        $client_id = $user->pharmacy_id;
-        $shop_id = $user->pharmacy_branch_id;
 
-        $companies = MedicineCompany::where('pharmacy_id', $client_id)->get();
+        $data = MedicineCompany::where('pharmacy_id', $user->pharmacy_id)->pluck('company_name');
 
-        $data = array();
-        foreach ($companies as $company) {
-            $data[] = $company->company_name;
-        }
         return response()->json($data);
     }
 

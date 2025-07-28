@@ -425,12 +425,17 @@ class OrderController extends Controller
         return response()->json(['success' => false]);
     }
 
-    public function previousPurchaseDetails(Request $request)
+     public function previousPurchaseDetails(Request $request)
     {
+        $user = $request->auth;
+        $client_id = $user->pharmacy_id;
+        $shop_id = $user->pharmacy_branch_id;
         if ($request->medicine_id) {
             $itemDetails = Medicine::select('medicines.pcs_per_box as pieces_per_box', 'medicines.tp_per_box as trade_price', 'medicines.vat_per_box as box_vat', 'medicines.mrp_per_box as mrp', 'medicines.barcode', 'products.low_stock_qty', 'products.percentage')
+                ->join('products', 'products.medicine_id', '=', 'medicines.id')
+                ->where('products.pharmacy_branch_id', $shop_id)    
                 ->where('medicines.id', $request->medicine_id)
-                ->leftJoin('products', 'products.medicine_id', '=', 'medicines.id')
+                ->select('medicines.*')
                 ->first();
         }
         return response()->json($itemDetails);
@@ -769,9 +774,11 @@ class OrderController extends Controller
                 return response()->json(['message' => $message], 404);
             }
 
-            if ($item['box_vat'] == '') {
+            if (empty($item['box_vat'])) {
                 $item['box_vat'] = 0;
             }
+
+            $item['piece_per_box'] = $item['piece_per_box'] ?? 0;
 
             $exp_date = date('Y-m-d', strtotime("1970-01-01"));
             if ($item['exp_date']) {
@@ -803,7 +810,7 @@ class OrderController extends Controller
                 $UpdateMedicine->tp_per_box  = $item['box_trade_price'] ? $item['box_trade_price'] : 0;
                 $UpdateMedicine->vat_per_box = $item['box_vat'] ? $item['box_vat'] : 0;
                 $UpdateMedicine->mrp_per_box = $item['box_mrp'] ? $item['box_mrp'] : 0;
-                if ($item['bar_code']) {
+                if (!empty($item['bar_code'])) {
                     $UpdateMedicine->barcode = $item['bar_code'] ? $item['bar_code'] : '';
                 }
                 $UpdateMedicine->save();
@@ -811,12 +818,13 @@ class OrderController extends Controller
 
             // $per_item_vat = ($item['box_trade_price'] + $item['box_vat']) / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
 
-            $isProcuctExist = Product::where('medicine_id', $medicine_id)->get();
+            $isProcuctExist = Product::where('medicine_id', $medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
             $free_qty = !empty($item['free_qty']) ? ($item['free_qty'] * $item['piece_per_box']) : 0;
-            if (sizeof($isProcuctExist)) {
-                $procuctId = $isProcuctExist[0]->id;
+            
+            if (!empty($isProcuctExist)) {
+                $procuctId = $isProcuctExist->id;
 
-                $UpdateProduct = Product::find($procuctId);
+                $UpdateProduct = $isProcuctExist;
 
                 $UpdateProduct->quantity            = $free_qty + $UpdateProduct->quantity + $item['quantity'];
 
@@ -824,7 +832,7 @@ class OrderController extends Controller
                     $UpdateProduct->mrp             = $item['box_mrp'];
                     $UpdateProduct->tp              = $item['box_trade_price'];
 
-                    if ($item['low_stock_qty']) {
+                    if (!empty($item['low_stock_qty'])) {
                         $UpdateProduct->low_stock_qty   = $item['low_stock_qty'] ? $item['low_stock_qty'] : 0;
                     }
                 }
@@ -841,7 +849,7 @@ class OrderController extends Controller
                     $InsertProduct->mrp             = $item['box_mrp'];
                     $InsertProduct->tp              = $item['box_trade_price'];
 
-                    if ($item['low_stock_qty']) {
+                    if (!empty($item['low_stock_qty'])) {
                         $InsertProduct->low_stock_qty   = $item['low_stock_qty'] ? $item['low_stock_qty'] : 0;
                     }
                 }

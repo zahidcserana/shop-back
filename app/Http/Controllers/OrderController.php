@@ -425,21 +425,34 @@ class OrderController extends Controller
         return response()->json(['success' => false]);
     }
 
-     public function previousPurchaseDetails(Request $request)
+    public function previousPurchaseDetails(Request $request)
     {
         $user = $request->auth;
-        $client_id = $user->pharmacy_id;
         $shop_id = $user->pharmacy_branch_id;
-        if ($request->medicine_id) {
-            $itemDetails = Medicine::select('medicines.pcs_per_box as pieces_per_box', 'medicines.tp_per_box as trade_price', 'medicines.vat_per_box as box_vat', 'medicines.mrp_per_box as mrp', 'medicines.barcode', 'products.low_stock_qty', 'products.percentage')
-                ->join('products', 'products.medicine_id', '=', 'medicines.id')
-                ->where('products.pharmacy_branch_id', $shop_id)    
-                ->where('medicines.id', $request->medicine_id)
-                ->select('medicines.*')
-                ->first();
+
+        if (!$request->medicine_id) {
+            return response()->json(['error' => 'medicine_id is required'], 400);
         }
+
+        $itemDetails = Medicine::join('products', 'products.medicine_id', '=', 'medicines.id')
+            ->where('products.pharmacy_branch_id', $shop_id)
+            ->where('medicines.id', $request->medicine_id)
+            ->select(
+                'medicines.id',
+                'medicines.brand_name',
+                'medicines.pcs_per_box as pieces_per_box',
+                'medicines.tp_per_box as trade_price',
+                'medicines.vat_per_box as box_vat',
+                'medicines.mrp_per_box as mrp',
+                'medicines.barcode',
+                'products.low_stock_qty',
+                'products.percentage'
+            )
+            ->first();
+
         return response()->json($itemDetails);
     }
+
 
     public function medicineUnitPriceDetails(Request $request)
     {
@@ -732,6 +745,7 @@ class OrderController extends Controller
         $details = $request->details;
         $items   = $request->items;
         $user    = $request->auth;
+        $item['update_price'] = 1;
 
         $orderAdd = new Order();
 

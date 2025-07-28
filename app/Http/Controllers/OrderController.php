@@ -767,6 +767,7 @@ class OrderController extends Controller
         }
         $orderAdd->status               = "ACCEPTED";
         $orderAdd->created_by           = $user->id;
+        $orderAdd->pharmacy_id   = $user->pharmacy_id;
         $orderAdd->pharmacy_branch_id   = $user->pharmacy_branch_id;
         $orderAdd->save();
 
@@ -871,6 +872,7 @@ class OrderController extends Controller
                 $InsertProduct->percentage            = $item['percentage'] ?? 0;
                 // $InsertProduct->batch_no            = $item['batch_no'];
                 // $InsertProduct->company_id          = $company_id ? $company_id : 0;
+                $InsertProduct->pharmacy_id  = $user->pharmacy_id;
                 $InsertProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
                 $InsertProduct->save();
             }

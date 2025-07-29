@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Pharmacy;
+use App\Models\PaymentType;
 use App\Models\PharmacyBranch;
 use App\Models\Brand;
 use App\Models\MedicineType;
@@ -49,6 +50,12 @@ class AdminController extends Controller
                 'branch_mobile' => $request->branch_mobile,
                 'branch_contact_person_name' => $request->branch_contact_person_name,
                 'branch_contact_person_mobile' => $request->branch_contact_person_mobile,
+            ]);
+
+            $shop = PaymentType::create([
+                'name' => PaymentType::$TYPE_CASH,
+                'account_no' => '',
+                'pharmacy_branch_id' => $shop->id,
             ]);
 
             $userData =[

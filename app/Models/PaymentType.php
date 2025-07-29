@@ -7,5 +7,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PaymentType extends Model
 {
-  use SoftDeletes;
+    use SoftDeletes;
+    protected $guarded = [];
+
+    public static $TYPE_CASH = 'Cash';
 }

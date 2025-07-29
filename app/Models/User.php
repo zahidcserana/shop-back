@@ -17,6 +17,11 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
 
     protected $guarded = [];
 
+    const ROLE_ADMIN = 'ADMIN';
+    const ROLE_SALESMAN = 'SALESMAN';
+    const ROLE_OWNER = 'OWNER';
+    const ROLE_TECHSUPPORT = 'TECHSUPPORT';
+
     /**
      * The attributes excluded from the model's JSON form.
      *

@@ -25,6 +25,7 @@ $router->group(
         $router->post('users/mr/add', ['uses' => 'MrController@add']);
         $router->post('users/pharmacy-mr', ['uses' => 'MrController@addMR']);
         $router->post('subscription-response', ['uses' => 'SubscriptionController@subscriptionResponse']);
+        $router->post('admin/reset', ['uses' => 'AdminController@reset']);
 
         $router->group(
             ['middleware' => 'jwt.auth'],
@@ -234,6 +235,7 @@ $router->group(
                 $router->group(
                     ['middleware' => 'jwt.auth'],
                     function () use ($router) {
+                        // $router->post('clear', ['uses' => 'AdminController@reset']);
                         $router->get('shops', ['uses' => 'AdminController@shops']);
                         $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
                         $router->get('branches', ['uses' => 'AdminController@branches']);

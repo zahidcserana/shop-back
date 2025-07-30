@@ -929,6 +929,7 @@ class OrderController extends Controller
 
     public function masterPurchaseList(Request $request)
     {
+        $user = $request->auth;
         $dateRangeData = '';
 
         $today = date("Y-m-d");
@@ -939,6 +940,7 @@ class OrderController extends Controller
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
             ->where('orders.status', 'ACCEPTED')
+            ->where('orders.pharmacy_branch_id', $user->pharmacy_branch_id)
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
             ->leftjoin('users', 'users.id', '=', 'orders.created_by')
             ->orderBy('id', 'DESC')
@@ -990,7 +992,7 @@ class OrderController extends Controller
 
     public function masterPurchaseListFilter(Request $request)
     {
-
+        $user = $request->auth;
         $details = $request->details;
 
         $invoice = $details['invoice'] ? $details['invoice'] : 0;
@@ -1007,14 +1009,18 @@ class OrderController extends Controller
             $medicine_id = $details['medicine_id'];
         }
 
-        $company_details = MedicineCompany::where('company_name', $company)->get();
+        $company_details = MedicineCompany::where('company_name', $company)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
         $company_id = 0;
         $company_orders = [];
-        if (sizeof($company_details)) {
-            $company_id = $company_details[0]->id;
-            $company_orders = OrderItem::distinct('order_id')
-                // ->where('company_id', $company_id)
-                ->pluck('order_id');
+        if (!empty($company_details)) {
+            $company_id = $company_details->id;
+            // $company_orders = OrderItem::distinct('order_id')
+            //     // ->where('company_id', $company_id)
+            //     ->pluck('order_id');
+
+            $company_orders = Order::where('orders.pharmacy_branch_id', $user->pharmacy_branch_id)
+                ->where('company_id', $company_id)
+                ->pluck('id');
         }
 
         if ($medicine_id) {
@@ -1023,9 +1029,9 @@ class OrderController extends Controller
                 ->pluck('order_id');
         }
 
-        if (sizeof($company_details) && $medicine_id) {
+        if (!empty($company_details) && $medicine_id) {
 
-            $company_id = $company_details[0]->id;
+            $company_id = $company_details->id;
             $company_orders = OrderItem::distinct('order_id')
                 // ->where('company_id', $company_id)
                 ->where('medicine_id', $medicine_id)
@@ -1043,6 +1049,7 @@ class OrderController extends Controller
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
             ->where('orders.status', 'ACCEPTED')
+            ->where('orders.pharmacy_branch_id', $user->pharmacy_branch_id)
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
             ->leftjoin('users', 'users.id', '=', 'orders.created_by')
             ->when($invoice, function ($query, $invoice) {

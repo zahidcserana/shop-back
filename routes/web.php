@@ -113,6 +113,7 @@ $router->group(
                 $router->post('medicines/quantity', ['uses' => 'MedicineController@getAvailableQuantity']);
 
                 /** Products */
+                $router->delete('product/{id}/delete', ['uses' => 'ProductController@destroy']);
                 $router->get('products/master-list', ['uses' => 'ProductController@index']);
                 $router->post('products/{id}', ['uses' => 'ProductController@edit']);
                 $router->get('products/{id}/delete', ['uses' => 'ProductController@delete']);
@@ -202,7 +203,6 @@ $router->group(
                 $router->post('product/save', ['uses' => 'OrderController@productSave']);
                 $router->post('product/update/{id}', ['uses' => 'OrderController@productUpdate']);
                 $router->get('product/list', ['uses' => 'OrderController@userAddedProductList']);
-                $router->delete('product/{id}/delete', ['uses' => 'OrderController@destroy']);
 
                 //Company
                 $router->post('company/save', ['uses' => 'OrderController@saveCompanyInformation']);

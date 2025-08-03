@@ -43,59 +43,74 @@ class ProductController extends Controller
     }
     return response()->json($data);
   }
+  
   public function index(Request $request)
   {
-    $user = $request->auth;
-    $client_id = $user->pharmacy_id;
-    $shop_id = $user->pharmacy_branch_id;
+      $user = $request->auth;
 
-    $data = $request->query();
-    $pageNo = $request->query('page_no') ?? 1;
-    $limit = $request->query('limit') ?? 500;
-    $offset = (($pageNo - 1) * $limit);
-    $where = array();
-    $where = array_merge(array(['products.pharmacy_branch_id', $shop_id]), $where);
-    if (!empty($data['generic'])) {
-      $where = array_merge(array(['medicines.generic_name', 'LIKE', $data['generic'] . '%']), $where);
-    }
-    if (!empty($data['company_id'])) {
-      $where = array_merge(array(['medicines.company_id', $data['company_id']]), $where);
-    }
-    if (!empty($data['brand_id'])) {
-      $where = array_merge(array(['medicines.brand_id', $data['brand_id']]), $where);
-    }
-    if (!empty($data['medicine_id'])) {
-      $where = array_merge(array(['medicines.id', $data['medicine_id']]), $where);
-    }
-    if (!empty($data['type_id'])) {
-      $where = array_merge(array(['medicines.medicine_type_id', $data['type_id']]), $where);
-    }
-    if (!empty($data['sale_date'])) {
-      $dateRange = explode(',', $data['sale_date']);
-      // $query = Sale::where($where)->whereBetween('created_at', $dateRange);
-      $where = array_merge(array([DB::raw('DATE(created_at)'), '>=', $dateRange[0]]), $where);
-      $where = array_merge(array([DB::raw('DATE(created_at)'), '<=', $dateRange[1]]), $where);
-    }
-    $query = Medicine::join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
-      ->join('products', 'products.medicine_id', '=', 'medicines.id')
-      ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
-      ->where($where);
+      $pageNo = $request->query('page_no', 1);
+      $limit = $request->query('limit', 500);
+      $offset = ($pageNo - 1) * $limit;
 
-    $total = $query->count();
-    $products = $query
-      ->select('medicines.id', 'medicines.id as medicine_id', 'brand_id', 'medicines.generic_name', 'medicines.barcode', 'medicines.medicine_type_id', 'medicines.brand_name', 'medicines.strength', 'medicine_types.name as type', 'brands.name as brand')
-      ->orderBy('medicines.brand_name', 'asc')
-      ->offset($offset)
-      ->limit($limit)
-      ->get();
-    $data = array(
-      'total' => $total,
-      'data' => $products,
-      'page_no' => $pageNo,
-      'limit' => $limit,
-    );
-    return response()->json($data);
+      $query = Medicine::join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
+          ->join('products', 'products.medicine_id', '=', 'medicines.id')
+          ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
+          ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
+          ->whereNull('products.deleted_at');
+
+      // ✅ Apply filters dynamically
+      if ($request->filled('generic')) {
+          $query->where('medicines.generic_name', 'LIKE', $request->generic . '%');
+      }
+      if ($request->filled('company_id')) {
+          $query->where('medicines.company_id', $request->company_id);
+      }
+      if ($request->filled('brand_id')) {
+          $query->where('medicines.brand_id', $request->brand_id);
+      }
+      if ($request->filled('medicine_id')) {
+          $query->where('medicines.id', $request->medicine_id);
+      }
+      if ($request->filled('type_id')) {
+          $query->where('medicines.medicine_type_id', $request->type_id);
+      }
+      if ($request->filled('sale_date')) {
+          $dateRange = explode(',', $request->sale_date);
+          if (count($dateRange) === 2) {
+              $query->whereBetween(DB::raw('DATE(medicines.created_at)'), [$dateRange[0], $dateRange[1]]);
+          }
+      }
+
+      // ✅ Clone query for total count
+      $total = (clone $query)->count();
+
+      $products = $query
+          ->select(
+              'medicines.id',
+              'medicines.id as medicine_id',
+              'medicines.brand_id',
+              'medicines.generic_name',
+              'medicines.barcode',
+              'medicines.medicine_type_id',
+              'medicines.brand_name',
+              'medicines.strength',
+              'medicine_types.name as type',
+              'brands.name as brand'
+          )
+          ->orderBy('medicines.brand_name', 'asc')
+          ->offset($offset)
+          ->limit($limit)
+          ->get();
+
+      return response()->json([
+          'total' => $total,
+          'data' => $products,
+          'page_no' => $pageNo,
+          'limit' => $limit
+      ]);
   }
+
+
   public function edit($id, Request $request)
   {
     $data = $request->all();
@@ -113,15 +128,26 @@ class ProductController extends Controller
     return response()->json(['success' => true]);
   }
 
-  public function delete($id)
+  public function destroy($id, Request $request)
   {
-    SaleItem::where('medicine_id', $id)->delete();
-    CartItem::where('medicine_id', $id)->delete();
-    OrderItem::where('medicine_id', $id)->delete();
-    DamageItem::where('medicine_id', $id)->delete();
-    Product::where('medicine_id', $id)->delete();
-    Notification::where('medicine_id', $id)->delete();
-    Medicine::where('id', $id)->delete();
+    $product = Product::where('medicine_id', $id)
+        ->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+        ->first();
+
+    if (!$product) {
+        return response()->json(['success' => false, 'message' => 'Product not found'], 404);
+    }
+
+    $product->delete();
+
+    // dd($product);
+    // SaleItem::where('medicine_id', $id)->delete();
+    // CartItem::where('medicine_id', $id)->delete();
+    // OrderItem::where('medicine_id', $id)->delete();
+    // DamageItem::where('medicine_id', $id)->delete();
+    // Product::where('medicine_id', $id)->delete();
+    // Notification::where('medicine_id', $id)->delete();
+    // Medicine::where('id', $id)->delete();
 
     return response()->json(['success' => true]);
   }

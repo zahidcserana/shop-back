@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
+use App\Models\PharmacyBranch;
 use App\Models\Order;
+use App\Models\Sale;
 use App\Models\OrderItem;
 use App\Models\Notification;
 use App\Models\InventoryDetail;
@@ -17,13 +20,13 @@ class DashboardController extends Controller
         $client_id = $user->pharmacy_id;
         $shop_id = $user->pharmacy_branch_id;
 
-        $pharmacy = DB::table('pharmacy_branches')->where('pharmacy_id', $client_id)->count();
-        $sale = DB::table('sales')->where('pharmacy_branch_id', $shop_id)->count();
-        $order = DB::table('orders')->where('pharmacy_branch_id', $shop_id)->count();
-        $medicine = DB::table('products')->where('pharmacy_branch_id', $shop_id)->count();
-        $company = DB::table('orders')->where('pharmacy_branch_id', $shop_id)->select('company_id')->distinct()->get()->count();
-        $customer = DB::table('sales')->select('customer_mobile')->where('pharmacy_branch_id', $shop_id)->distinct()->get()->count();
-        $entry = DB::table('order_items')->join('orders', 'orders.id', '=', 'order_items.order_id')->where('pharmacy_branch_id', $shop_id)->count();
+        $pharmacy = PharmacyBranch::where('pharmacy_id', $client_id)->count();
+        $sale = Sale::where('pharmacy_branch_id', $shop_id)->count();
+        $order = Order::where('pharmacy_branch_id', $shop_id)->count();
+        $medicine = Product::where('pharmacy_branch_id', $shop_id)->count();
+        $company = Order::where('pharmacy_branch_id', $shop_id)->select('company_id')->distinct()->get()->count();
+        $customer = Sale::select('customer_mobile')->where('pharmacy_branch_id', $shop_id)->distinct()->get()->count();
+        $entry = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')->where('pharmacy_branch_id', $shop_id)->count();
 
         $data = array();
         $data['total_customer'] = $customer;

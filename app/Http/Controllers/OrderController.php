@@ -812,7 +812,8 @@ class OrderController extends Controller
             $itemSave->percentage      = $item['percentage'];
             $itemSave->box_vat          = $item['box_vat'] ?? 0;
             $itemSave->total            = $item['amount'];
-            $itemSave->pieces_per_box   = $item['piece_per_box'];
+            $itemSave->pieces_per_box   = 1;
+            // $itemSave->pieces_per_box   = $item['piece_per_box'];
             $itemSave->save();
 
             if ($item['update_price']) {

@@ -644,9 +644,9 @@ class OrderController extends Controller
             $UpdateOrderInfo->total_payble_amount = $sub_total;
             $UpdateOrderInfo->save();
 
-            $UpdateProduct = Product::where('medicine_id', $update_medicine_id)->get();
-            if (sizeof($UpdateProduct)) {
-                $productId = $UpdateProduct[0]->id;
+            $UpdateProduct = Product::where('medicine_id', $update_medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
+            if (!empty($UpdateProduct)) {
+                $productId = $UpdateProduct->id;
                 $UpdateProductInfo = Product::find($productId);
                 $UpdateProductInfo->quantity = $UpdateProductInfo->quantity + $updated_product_quantity;
                 $UpdateProductInfo->save();
@@ -692,9 +692,10 @@ class OrderController extends Controller
 
         $new_total_qty = $piece_per_box * $quantity;
 
-        $UpdateProduct = Product::where('medicine_id', $update_medicine_id)->get();
-        if (sizeof($UpdateProduct)) {
-            $productId = $UpdateProduct[0]->id;
+        $UpdateProduct = Product::where('medicine_id', $update_medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
+
+        if (!empty($UpdateProduct)) {
+            $productId = $UpdateProduct->id;
             $UpdateProductInfo = Product::find($productId);
             $UpdateProductInfo->quantity = $UpdateProductInfo->quantity - $new_total_qty;
             $UpdateProductInfo->save();

@@ -658,6 +658,15 @@ class OrderController extends Controller
     public function purchaseDetailsDelete(Request $request)
     {
         $orderId = $request->purchase_id;
+        $existItem = OrderItem::where('order_id', $orderId)->first();
+
+        if (!empty($existItem)) {
+            return response()->json(array(
+                'status' => false,
+                'message' => "Please delete all item first!",
+            ));
+        }
+
         OrderItem::where('order_id', $orderId)->delete();
 
         if (Order::find($orderId)->delete()) {
@@ -728,7 +737,6 @@ class OrderController extends Controller
         $UpdateOrderInfo->total_payble_amount = $sub_total;
         $UpdateOrderInfo->save();
 
-        $UpdateItemInfo = OrderItem::find($item_id);
         $UpdateItemInfo->delete();
 
         return response()->json(array(

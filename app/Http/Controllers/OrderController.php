@@ -750,10 +750,11 @@ class OrderController extends Controller
         $items   = $request->items;
         $user    = $request->auth;
         $item['update_price'] = 1;
+        $company_id = $details['company'] ?? 0;
 
         $orderAdd = new Order();
 
-        $orderAdd->company_id           = $details['company'] ? $details['company'] : 0;
+        $orderAdd->company_id           = $details['company'] ?? 0;
         $orderAdd->company_invoice      = $details['invoice'] ? $details['invoice'] : 0;
         $orderAdd->purchase_date        = date('Y-m-d');
         $orderAdd->total_amount         = $details['total'] ? $details['total'] : 0;
@@ -807,7 +808,7 @@ class OrderController extends Controller
 
             $itemSave = new OrderItem();
             $itemSave->medicine_id      = $item['medicine_id'];
-            // $itemSave->company_id       = $company_id;
+            $itemSave->company_id       = $company_id;
             $itemSave->quantity         = $item['quantity'];
             $itemSave->free_qty         = $item['free_qty'] ?? 0;
             $itemSave->order_id         = $OrderId;
@@ -858,7 +859,7 @@ class OrderController extends Controller
                 }
                 // $UpdateProduct->batch_no            = $item['batch_no'];
                 $UpdateProduct->percentage            = $item['percentage'] ?? 0;
-                // $UpdateProduct->company_id          = $company_id ? $company_id : 0;
+                $UpdateProduct->company_id          = $company_id ? $company_id : 0;
                 $UpdateProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
                 $UpdateProduct->save();
             } else {
@@ -876,7 +877,7 @@ class OrderController extends Controller
 
                 $InsertProduct->percentage            = $item['percentage'] ?? 0;
                 // $InsertProduct->batch_no            = $item['batch_no'];
-                // $InsertProduct->company_id          = $company_id ? $company_id : 0;
+                $InsertProduct->company_id          = $company_id ? $company_id : 0;
                 $InsertProduct->pharmacy_id  = $user->pharmacy_id;
                 $InsertProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
                 $InsertProduct->save();
@@ -1948,44 +1949,8 @@ class OrderController extends Controller
         ));
     }
 
-    private function getSaleQty($productsSaleQty, $medicineIds)
-    {
-        $items = Sale::where('sales.pharmacy_branch_id', $this->pharmacy_branch_id)
-            ->whereBetween('sales.sale_date', [$this->date_open, $this->date_close])
-            ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
-            ->whereIn('sale_items.medicine_id', $medicineIds)
-            ->select('sale_items.medicine_id', DB::raw('SUM(sale_items.quantity) as total_qty'))
-            ->groupBy('sale_items.medicine_id')
-            ->get();
-
-        foreach ($items as $item) {
-            $productsSaleQty[$item->medicine_id] = $item->total_qty;
-        }
-
-        return $productsSaleQty;
-    }
-
-    private function getPurchaseQty($productsPurchaseQty, $medicineIds)
-    {
-        $items = Order::where('orders.pharmacy_branch_id', $this->pharmacy_branch_id)
-            ->whereBetween('orders.purchase_date', [$this->date_open, $this->date_close])
-            ->join('order_items', 'orders.id', '=', 'order_items.order_id')
-            ->whereIn('order_items.medicine_id', $medicineIds)
-            ->select('order_items.medicine_id', DB::raw('SUM(order_items.quantity) as total_qty'))
-            ->groupBy('order_items.medicine_id')
-            ->get();
-
-        foreach ($items as $item) {
-            $productsPurchaseQty[$item->medicine_id] = $item->total_qty;
-        }
-
-        return $productsPurchaseQty;
-    }
-
-
     public function productList(Request $request)
     {
-
         $user = $request->auth;        
         $pageNo = $request->query('page_no') ?? 1;
         $limit = $request->query('limit') ?? 500;
@@ -2058,8 +2023,10 @@ class OrderController extends Controller
         $productsPurchaseQty = array_fill_keys($medicineIds, 0);
 
         // Get sale & purchase quantities
-        $productsSaleQty = $this->getSaleQty($productsSaleQty, $medicineIds);
-        $productsPurchaseQty = $this->getPurchaseQty($productsPurchaseQty, $medicineIds);
+        $saleModel = new Sale();
+        $orderModel = new Order();
+        $productsSaleQty = $saleModel->getSaleQty($productsSaleQty, $medicineIds);
+        $productsPurchaseQty = $orderModel->getPurchaseQty($productsPurchaseQty, $medicineIds);
         $quantityInTotal = 0;
         $quantityOutTotal = 0;
 
@@ -2540,7 +2507,7 @@ class OrderController extends Controller
                 $itemList[] = array('medicine' => $item_name, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'unit_price' => $item->unit_price, 'unit_type' => $item->unit_type);
             endforeach;
 
-            $data[] = array('invoice' => $individual_sale->invoice, 'sale_date' => $individual_sale->sale_date, 'discount' => $individual_sale->discount, 'customer_name' => $individual_sale->customer_name, 'customer_mobile' => $individual_sale->customer_mobile, 'total_payble_amount' => $individual_sale->total_payble_amount, 'items' => $itemList);
+            $data[] = array('invoice' => $individual_sale->invoice, 'sale_date' => $individual_sale->sale_date, 'discount' => $individual_sale->discount, 'customer_name' -> $individual_sale->customer_name, 'customer_mobile' => $individual_sale->customer_mobile, 'total_payble_amount' => $individual_sale->total_payble_amount, 'items' => $itemList);
         endforeach;
 
         return response()->json(array(

@@ -169,6 +169,10 @@ class SaleItem extends Model
         return true;
     }
 
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'medicine_id', 'medicine_id');
+    }
 
     public function medicine()
     {

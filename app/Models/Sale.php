@@ -335,6 +335,23 @@ class Sale extends Model
         return true;
     }
 
+    public function getSaleQty($productsSaleQty, $medicineIds)
+    {
+        $items = Sale::where('sales.pharmacy_branch_id', $this->pharmacy_branch_id)
+            ->whereBetween('sales.sale_date', [$this->date_open, $this->date_close])
+            ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+            ->whereIn('sale_items.medicine_id', $medicineIds)
+            ->select('sale_items.medicine_id', DB::raw('SUM(sale_items.quantity) as total_qty'))
+            ->groupBy('sale_items.medicine_id')
+            ->get();
+
+        foreach ($items as $item) {
+            $productsSaleQty[$item->medicine_id] = $item->total_qty;
+        }
+
+        return $productsSaleQty;
+    }
+
     /** ************* */
 
     /** Relationship */

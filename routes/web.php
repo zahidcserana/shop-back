@@ -111,6 +111,7 @@ $router->group(
                 $router->get('medicines/search/sale', ['uses' => 'MedicineController@searchByShop']);
                 $router->post('medicines/batch', ['uses' => 'MedicineController@batchList']);
                 $router->post('medicines/quantity', ['uses' => 'MedicineController@getAvailableQuantity']);
+                $router->get('supplier-sale-report', ['uses' => 'SaleController@supplierSaleReport']);
 
                 /** Products */
                 $router->delete('product/{id}/delete', ['uses' => 'ProductController@destroy']);

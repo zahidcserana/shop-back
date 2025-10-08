@@ -1976,7 +1976,8 @@ class OrderController extends Controller
             $this->date_close = $today->copy()->endOfDay();
         }
 
-        $baseQuery = Product::select(
+        $baseQuery = Product::query()
+            ->select([
                 'products.id',
                 'products.quantity',
                 'products.mrp',
@@ -1990,19 +1991,17 @@ class OrderController extends Controller
                 'medicine_types.name as medicine_type',
                 'products.company_id',
                 'products.low_stock_qty',
-                'brands.name as brand'
-            )
-            ->orderBy('medicines.brand_name', 'ASC')
-            ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
+                'brands.name as brand',
+            ])
             ->leftJoin('medicines', 'medicines.id', '=', 'products.medicine_id')
             ->leftJoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
             ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
-            ->when($company_id, function ($query, $company_id) {
-                return $query->leftJoin('order_items', 'products.medicine_id', '=', 'order_items.medicine_id')
-                        ->leftJoin('orders', 'order_items.order_id', '=', 'orders.id')
-                        ->where('orders.company_id', $company_id)
-                        ->groupBy('products.medicine_id');
-            });
+            ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
+            ->when($company_id > 0, function ($query) use ($company_id) {
+                $query->where('products.company_id', $company_id);
+            })
+            ->orderBy('medicines.brand_name', 'ASC');
+
 
         // Clone for calculating aggregates
         $summaryQuery = (clone $baseQuery);

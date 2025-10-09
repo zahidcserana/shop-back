@@ -504,7 +504,7 @@ class SaleController extends Controller
 
     $changeLog = $this->_changeLog($itemData, $data);
     $saleItem = new SaleItem();
-    $saleItem->updateInventoryQuantity($itemData, $itemData->quantity - $data['new_quantity'], 'add');
+    $saleItem->returnUpdateInventoryQuantity($itemData, $itemData->quantity - $data['new_quantity'], 'add');
 
     $input = array(
       'quantity' => $data['new_quantity'],

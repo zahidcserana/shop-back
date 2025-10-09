@@ -66,17 +66,30 @@ class SaleItem extends Model
         $orderId = $item->sale_id;
         $item->update();
         if ($this::where('sale_id', $orderId)->where('return_status', '<>', 'RETURN')->first()) {
-            $this->updateInventoryQuantity($item, $item->quantity);
+            $this->returnUpdateInventoryQuantity($item, $item->quantity);
             $orderModel->updateOrder($orderId);
             $orderDetails = $orderModel->getOrderDetails($orderId);
         } else {
-            $this->updateInventoryQuantity($item, $item->quantity);
+            $this->returnUpdateInventoryQuantity($item, $item->quantity);
             $order = new Sale();
             $order = $order::find($orderId);
             $order->delete();
             $orderDetails = [];
         }
         return ['success' => true, 'data' => $orderDetails];
+    }
+
+    public function returnUpdateInventoryQuantity($item, $quantity, $status = 'add') 
+    {
+        $sale = Sale::find($item->sale_id);
+        $inventory = Product::where('medicine_id', $item->medicine_id)->where('pharmacy_branch_id', $sale->pharmacy_branch_id)->first();
+        
+        if($inventory) {
+            $aQty = $status == 'add' ? $inventory->quantity + $quantity : $inventory->quantity - $quantity;
+
+            $inventory->quantity = $aQty < 0 ? 0 : $aQty;
+            $inventory->save();
+      }
     }
 
     public function updateInventoryQuantity($item, $quantity, $status = 'add') 

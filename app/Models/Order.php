@@ -354,21 +354,4 @@ class Order extends Model
     {
         return \Carbon\Carbon::parse($value)->timezone('Asia/Dhaka');
     }
-
-    public function getPurchaseQty($productsPurchaseQty, $medicineIds)
-    {
-        $items = Order::where('orders.pharmacy_branch_id', $this->pharmacy_branch_id)
-            ->whereBetween('orders.purchase_date', [$this->date_open, $this->date_close])
-            ->join('order_items', 'orders.id', '=', 'order_items.order_id')
-            ->whereIn('order_items.medicine_id', $medicineIds)
-            ->select('order_items.medicine_id', DB::raw('SUM(order_items.quantity) as total_qty'))
-            ->groupBy('order_items.medicine_id')
-            ->get();
-
-        foreach ($items as $item) {
-            $productsPurchaseQty[$item->medicine_id] = $item->total_qty;
-        }
-
-        return $productsPurchaseQty;
-    }
 }

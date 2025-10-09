@@ -1949,6 +1949,40 @@ class OrderController extends Controller
         ));
     }
 
+    public function getSaleQty($productsSaleQty, $medicineIds)
+    {
+        $items = Sale::where('sales.pharmacy_branch_id', $this->pharmacy_branch_id)
+            ->whereBetween('sales.sale_date', [$this->date_open, $this->date_close])
+            ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+            ->whereIn('sale_items.medicine_id', $medicineIds)
+            ->select('sale_items.medicine_id', DB::raw('SUM(sale_items.quantity) as total_qty'))
+            ->groupBy('sale_items.medicine_id')
+            ->get();
+
+        foreach ($items as $item) {
+            $productsSaleQty[$item->medicine_id] = $item->total_qty;
+        }
+
+        return $productsSaleQty;
+    }
+
+    public function getPurchaseQty($productsPurchaseQty, $medicineIds)
+    {
+        $items = Order::where('orders.pharmacy_branch_id', $this->pharmacy_branch_id)
+            ->whereBetween('orders.purchase_date', [$this->date_open, $this->date_close])
+            ->join('order_items', 'orders.id', '=', 'order_items.order_id')
+            ->whereIn('order_items.medicine_id', $medicineIds)
+            ->select('order_items.medicine_id', DB::raw('SUM(order_items.quantity) as total_qty'))
+            ->groupBy('order_items.medicine_id')
+            ->get();
+
+        foreach ($items as $item) {
+            $productsPurchaseQty[$item->medicine_id] = $item->total_qty;
+        }
+
+        return $productsPurchaseQty;
+    }
+
     public function productList(Request $request)
     {
         $user = $request->auth;        
@@ -2022,10 +2056,8 @@ class OrderController extends Controller
         $productsPurchaseQty = array_fill_keys($medicineIds, 0);
 
         // Get sale & purchase quantities
-        $saleModel = new Sale();
-        $orderModel = new Order();
-        $productsSaleQty = $saleModel->getSaleQty($productsSaleQty, $medicineIds);
-        $productsPurchaseQty = $orderModel->getPurchaseQty($productsPurchaseQty, $medicineIds);
+        $productsSaleQty = $this->getSaleQty($productsSaleQty, $medicineIds);
+        $productsPurchaseQty = $this->getPurchaseQty($productsPurchaseQty, $medicineIds);
         $quantityInTotal = 0;
         $quantityOutTotal = 0;
 

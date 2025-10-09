@@ -72,6 +72,25 @@ class CartController extends Controller
 
         return response()->json($cartUpdate);
     }
+
+    public function freeQuantityUpdate(Request $request)
+    {
+        $data = $request->all();
+        $cartItem = CartItem::find($data['id']);
+        if ($cartItem) {
+            $cartItem->free_quantity = $data['increment_free'] == 1 ? $cartItem->free_quantity + 1: $cartItem->free_quantity - 1;
+            $cartItem->save();
+        }
+
+        $cart = Cart::where('token', $data['token'])->first();
+        if ($cart) {
+            $cartDetails = $cart->getCartDetails($cart->id);
+            return response()->json(['success' => true, 'data' => $cartDetails]);
+        }
+
+        return response()->json(['success' => false, 'error' => 'Something went wrong!']);
+    }
+    
     public function priceUpdate(Request $request)
     {
         $data = $request->all();

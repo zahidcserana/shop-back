@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use phpDocumentor\Reflection\Types\This;
 use App\Models\Sale;
+use App\Models\Product;
 use Auth;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -23,6 +24,7 @@ class SaleItem extends Model
                 'medicine_id' => $cartItem->medicine_id,
                 'company_id' => $cartItem->company_id,
                 'quantity' => $cartItem->quantity,
+                'free_quantity' => $cartItem->free_quantity,
                 'sale_id' => $orderId,
                 'exp_date' => $cartItem->exp_date,
                 'mfg_date' => $cartItem->mfg_date,
@@ -38,6 +40,7 @@ class SaleItem extends Model
             );
             $this::create($itemInput);
             $this->updateInventoryQuantity($cartItem, $cartItem->quantity, 'sub');
+            $this->updateInventoryQuantity($cartItem, $cartItem->free_quantity, 'sub');
         }
         return;
     }
@@ -75,28 +78,18 @@ class SaleItem extends Model
         }
         return ['success' => true, 'data' => $orderDetails];
     }
-    public function updateInventoryQuantity($item, $quantity, $status = 'add') {
-      $inventory = DB::table('products')->where('medicine_id', $item->medicine_id)->first();
-      if($inventory) {
-        $aQty = $status == 'add' ? $inventory->quantity + $quantity : $inventory->quantity - $quantity;
-        $data = array(
-          'quantity' => $aQty < 0 ? 0 : $aQty
-        );
 
-        DB::table('products')->where('id', $inventory->id)->update($data);
+    public function updateInventoryQuantity($item, $quantity, $status = 'add') 
+    {
+        $cart = Cart::find($item->cart_id);
+        $inventory = Product::where('medicine_id', $item->medicine_id)->where('pharmacy_branch_id', $cart->pharmacy_branch_id)->first();
+        
+        if($inventory) {
+            $aQty = $status == 'add' ? $inventory->quantity + $quantity : $inventory->quantity - $quantity;
+
+            $inventory->quantity = $aQty < 0 ? 0 : $aQty;
+            $inventory->save();
       }
-      // else {
-      //   $cart = DB::table('carts')->where('id', $item->cart_id)->first();
-      //   $data = array(
-      //     'medicine_id' => $item->medicine_id,
-      //     'sale_quantity' => $quantity,
-      //     'mrp' => $item->unit_price,
-      //     'company_id' => $item->company_id,
-      //     'pharmacy_branch_id' => $cart->pharmacy_branch_id,
-      //     'pharmacy_id' => $cart->pharmacy_id,
-      //   );
-      //   DB::table('products')->insert($data);
-      // }
     }
 
     public function manualOrderIem($orderId, $data)
@@ -151,6 +144,7 @@ class SaleItem extends Model
                         'medicine_id' => $medicineData->id,
                         'company_id' => $data['company_id'],
                         'quantity' => $item['quantity'],
+                        'free_quantity' => $item['free_quantity'] ?? 0,
                         'order_id' => $orderId,
                         // 'batch_no' => $item['batch_no'],
                         // 'dar_no' => $cartItem->dar_no,

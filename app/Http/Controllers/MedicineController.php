@@ -274,9 +274,12 @@ class MedicineController extends Controller
 
     public function getAvailableQuantity(Request $request)
     {
+        $user    = $request->auth;
+
         $product = DB::table('products')
             ->select(DB::raw('SUM(quantity) as available_quantity'))
             ->where('medicine_id', $request->input('medicine_id'))
+            ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
             ->first();
 
         $cartItem = new CartItem();

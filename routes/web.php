@@ -87,6 +87,7 @@ $router->group(
                 $router->post('carts/delete-item', ['uses' => 'CartController@deleteItem']);
                 $router->get('carts/{token}/delete', ['uses' => 'CartController@destroy']);
                 $router->post('carts/quantity-update', ['uses' => 'CartController@quantityUpdate']);
+                $router->post('carts/free-quantity-update', ['uses' => 'CartController@freeQuantityUpdate']);
                 $router->post('carts/price-update', ['uses' => 'CartController@priceUpdate']);
 
                 /** Report Sale */

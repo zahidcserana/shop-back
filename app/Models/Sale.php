@@ -179,6 +179,7 @@ class Sale extends Model
         $items = array();
         $totalProfit = 0;
         $totalQty = 0;
+        $totalFreeQty = 0;
 
         foreach ($orderItems as $item) {
             $aData = array();
@@ -186,6 +187,7 @@ class Sale extends Model
             $aData['medicine_id'] = $item->medicine_id;
             $aData['power'] = $item->power;
             $aData['quantity'] = $item->quantity;
+            $aData['free_quantity'] = $item->free_quantity;
             $aData['batch_no'] = $item->batch_no;
             $aData['sale_id'] = $item->sale_id;
             $aData['tax'] = $item->tax;
@@ -217,12 +219,14 @@ class Sale extends Model
 
             $totalProfit += $profit;
             $totalQty += $item->quantity;
+            $totalFreeQty += (int) $item->free_quantity;
 
             $items[] = $aData;
         }
 
         $data['order_items'] = $items;
         $data['total_qty'] = $totalQty;
+        $data['total_free_qty'] = $totalFreeQty;
         $data['total_profit'] = round($totalProfit, 2);
 
         return $data;

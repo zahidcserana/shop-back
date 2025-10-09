@@ -227,7 +227,7 @@ class Sale extends Model
         $data['order_items'] = $items;
         $data['total_qty'] = $totalQty;
         $data['total_free_qty'] = $totalFreeQty;
-        $data['total_profit'] = round($totalProfit, 2);
+        $data['total_profit'] = round($totalProfit, 2) - $order->discount;
 
         return $data;
     }

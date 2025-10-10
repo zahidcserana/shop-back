@@ -106,6 +106,8 @@ class Cart extends Model
         $data['file_name'] = $cart->file_name;
         // $data['is_antibiotic'] = $this->_checkAntibiotic($cartId);
         $items = array();
+        $totalQty = 0;
+
         foreach ($cartItems as $cartItem) {
             $aData = array();
             $aData['id'] = $cartItem->id;
@@ -128,8 +130,10 @@ class Cart extends Model
             $medicine = $cartItem->medicine;
             $aData['medicine'] = ['strength' => $medicine->strength, 'brand_name' => $medicine->brand_name, 'brand' => $medicine->brand?->name, 'type' => substr($medicine->medicineType?->name, 0, 3)];
             $items[] = $aData;
+            $totalQty += $cartItem->quantity + $cartItem->free_quantity;
         }
         $data['cart_items'] = $items;
+        $data['total_quantity'] = $totalQty;
 
         return $data;
     }

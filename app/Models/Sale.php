@@ -12,6 +12,114 @@ class Sale extends Model
 
     public function makeOrder($data)
     {
+        try {
+            return DB::transaction(function () use ($data) {
+
+                $cart = Cart::where('token', $data['token'])->first();
+                if (!$cart) {
+                    throw new \Exception('Invalid cart token');
+                }
+
+                $data['discount'] = $data['discount'] ?? 0;
+
+                $saleInput = [
+                    'customer_name' => $data['customer_name'] ?? '',
+                    'customer_mobile' => $data['customer_mobile'] ?? '',
+                    'pharmacy_id' => $cart->pharmacy_id,
+                    'pharmacy_branch_id' => $cart->pharmacy_branch_id,
+                    'created_by' => $data['created_by'] ?: $cart->created_by,
+                    'quantity' => $cart->quantity,
+                    'payment_type' => $data['payment_type'],
+                    'sub_total' => $data['sub_total'],
+                    'vat_amount' => $cart->tax,
+                    'discount' => $data['discount'],
+                    'total_advance_amount' => $data['total_advance_amount'],
+                    'total_due_amount' => $data['total_due_amount'],
+                    'total_payble_amount' => $data['sub_total'] - $data['discount'],
+                    'remarks' => $cart->remarks,
+                    'sale_date' => Carbon::now()->toDateString(),
+                    'created_at' => Carbon::now(),
+                    'status' => $data['total_due_amount'] > 0 ? 'DUE' : 'COMPLETE',
+                ];
+
+                $saleId = self::insertGetId($saleInput);
+                $invoice = 'INV-' . Carbon::now()->timestamp . $saleId;
+
+                self::where('id', $saleId)->update(['invoice' => $invoice]);
+
+                // Fetch items from cart
+                $cartItems = CartItem::where('cart_id', $cart->id)->get();
+
+                if ($cartItems->isEmpty()) {
+                    throw new \Exception('Cart items not found.');
+                }
+
+                $saleItems = [];
+                foreach ($cartItems as $cartItem) {
+                    $saleItems[] = [
+                        'medicine_id' => $cartItem->medicine_id,
+                        'company_id' => $cartItem->company_id,
+                        'quantity' => $cartItem->quantity,
+                        'free_quantity' => $cartItem->free_quantity,
+                        'sale_id' => $saleId,
+                        'exp_date' => $cartItem->exp_date,
+                        'mfg_date' => $cartItem->mfg_date,
+                        'batch_no' => $cartItem->batch_no,
+                        'dar_no' => $cartItem->dar_no,
+                        'unit_price' => $cartItem->unit_price,
+                        'unit_type' => $cartItem->unit_type,
+                        'sub_total' => $cartItem->sub_total,
+                        'tp' => $cartItem->tp,
+                        'discount' => $cartItem->discount ?? 0,
+                        'product_type' => $cartItem->product_type,
+                        'created_at' => Carbon::now(),
+                        'updated_at' => Carbon::now(),
+                    ];
+
+                    // Update inventory
+                    $this->updateInventoryQuantity($cartItem, $cartItem->quantity + $cartItem->free_quantity, 'sub');
+                }
+
+                // Bulk insert for efficiency
+                DB::table('sale_items')->insert($saleItems);
+
+                // Clean up cart
+                CartItem::where('cart_id', $cart->id)->delete();
+                $cart->delete();
+
+                return [
+                    'success' => true,
+                    'message' => 'Sale created successfully.',
+                    'data' => $this->getOrderDetails($saleId),
+                ];
+            });
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            \Log::error('Sale creation failed: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Sale creation failed.',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    public function updateInventoryQuantity($item, $quantity, $status = 'add') 
+    {
+        $cart = Cart::find($item->cart_id);
+        $inventory = Product::where('medicine_id', $item->medicine_id)->where('pharmacy_branch_id', $cart->pharmacy_branch_id)->first();
+        
+        if($inventory) {
+            $aQty = $status == 'add' ? $inventory->quantity + $quantity : $inventory->quantity - $quantity;
+
+            $inventory->quantity = $aQty < 0 ? 0 : $aQty;
+            $inventory->save();
+      }
+    }
+
+    public function makeOrderOld($data)
+    {
         $cartModel = new Cart();
         $cartData = $cartModel->where('token', $data['token'])->first();
         if (empty($cartData)) {

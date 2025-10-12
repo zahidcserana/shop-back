@@ -201,17 +201,13 @@ class SaleController extends Controller
     $this->validate($request, [
       'token' => 'required',
     ]);
+    
     $orderModel = new Sale();
     $order = $orderModel->makeOrder($data);
-    // if($order['success'] == true && $data['sendsms']) {
-    //   $data = array(
-    //     'mobile' => $order['data']['customer_mobile'],
-    //     'message' => 'Thank you for your order. Your Order Invoice is '. $order['data']['invoice'] . '.'
-    //   );
-    //   $this->_sendMessage($data);
-    // }
+
     return response()->json($order);
   }
+
   private function _sendMessage($data)
   {
     $curl = curl_init();

@@ -1972,6 +1972,7 @@ class OrderController extends Controller
             ->whereBetween('orders.purchase_date', [$this->date_open, $this->date_close])
             ->join('order_items', 'orders.id', '=', 'order_items.order_id')
             ->whereIn('order_items.medicine_id', $medicineIds)
+            ->whereNull('order_items.deleted_at')
             ->select('order_items.medicine_id', DB::raw('SUM(order_items.quantity) as total_qty'))
             ->groupBy('order_items.medicine_id')
             ->get();

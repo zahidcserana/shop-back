@@ -684,65 +684,90 @@ class OrderController extends Controller
 
     public function purchaseItemDetailsDelete(Request $request)
     {
+        try {
+            // Use DB transaction safely
+            return DB::transaction(function () use ($request) {
 
-        $item_id = $request->item_id;
-        $orderId = $request->order_id;
-        $user    = $request->auth;
+                $item_id = $request->item_id;
+                $orderId = $request->order_id;
+                $user    = $request->auth;
 
-        $UpdateItemInfo = OrderItem::find($item_id);
-        $piece_per_box = $UpdateItemInfo->pieces_per_box;
-        $trade_price = $UpdateItemInfo->trade_price;
-        $quantity = $UpdateItemInfo->quantity;
+                // ✅ 1. Fetch the item properly
+                $UpdateItemInfo = OrderItem::find($item_id);
+                if (!$UpdateItemInfo) {
+                    throw new \Exception("Order item not found.");
+                }
 
-        $update_medicine_id = $UpdateItemInfo->medicine_id;
+                $piece_per_box = $UpdateItemInfo->pieces_per_box ?? 1;
+                $trade_price   = $UpdateItemInfo->trade_price ?? 0;
+                $quantity      = $UpdateItemInfo->quantity ?? 0;
+                $update_medicine_id = $UpdateItemInfo->medicine_id;
 
-        $new_total_qty = $piece_per_box * $quantity;
+                $new_total_qty = $piece_per_box * $quantity;
 
-        $UpdateProductInfo = Product::where('medicine_id', $update_medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
+                // ✅ 2. Update product stock
+                $UpdateProductInfo = Product::where('medicine_id', $update_medicine_id)
+                    ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
+                    ->first();
 
-        if (!empty($UpdateProductInfo)) {
-            $UpdateProductInfo->quantity = $UpdateProductInfo->quantity - $new_total_qty;
-            $UpdateProductInfo->save();
+                if ($UpdateProductInfo) {
+                    $UpdateProductInfo->quantity = max(0, $UpdateProductInfo->quantity - $new_total_qty);
+                    $UpdateProductInfo->save();
+                }
+
+                // ✅ 3. Recalculate order totals excluding deleted item
+                $existing_items = OrderItem::where('order_id', $orderId)
+                    ->where('id', '!=', $item_id)
+                    ->get();
+
+                $grandTotalPrice = $existing_items->sum('total');
+
+                $UpdateOrderInfo = Order::find($orderId);
+                if (!$UpdateOrderInfo) {
+                    throw new \Exception("Order not found.");
+                }
+
+                $tax_type = $UpdateOrderInfo->tax_type;
+                $tax      = $UpdateOrderInfo->tax ?? 0;
+                $discount = $UpdateOrderInfo->discount ?? 0;
+
+                if ($tax_type === "percentage") {
+                    $total_vat = ($grandTotalPrice * $tax) / 100;
+                    $sub_total = $grandTotalPrice + $total_vat - $discount;
+                } else {
+                    $sub_total = $grandTotalPrice + $tax - $discount;
+                }
+
+                $total_advance_amount = $UpdateOrderInfo->total_advance_amount ?? 0;
+                $due = $sub_total - $total_advance_amount;
+
+                $UpdateOrderInfo->update([
+                    'total_due_amount'      => $due,
+                    'sub_total'             => $sub_total,
+                    'total_amount'          => $grandTotalPrice,
+                    'total_payble_amount'   => $sub_total,
+                ]);
+
+                // ✅ 4. Delete item last
+                $UpdateItemInfo->delete();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Purchase item deleted successfully!',
+                ]);
+            });
+
+        } catch (\Throwable $e) {
+            // No need to call DB::rollBack() manually — DB::transaction() handles it.
+            \Log::error('PO deletion failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Purchase item deletion failed.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-
-        $existing_items = OrderItem::where('order_id', $orderId)->where('id', '!=', $item_id)->get();
-
-        $grandTotalPrice = 0;
-        if (sizeof($existing_items)) {
-            foreach ($existing_items as $item) :
-                $grandTotalPrice = $grandTotalPrice + $item->total;
-            endforeach;
-        }
-
-        $UpdateOrderInfo = Order::find($orderId);
-
-        $tax_type = $UpdateOrderInfo->tax_type;
-        $tax = $UpdateOrderInfo->tax;
-        $discount = $UpdateOrderInfo->discount;
-
-        if ($tax_type == "percentage") {
-            $total_vat = ($grandTotalPrice * $tax) / 100;
-            $sub_total = $grandTotalPrice + $total_vat + $discount;
-        } else {
-            $sub_total = $grandTotalPrice + $tax + $discount;
-        }
-        $total_advance_amount = $UpdateOrderInfo->total_advance_amount;
-
-        $due = $sub_total - $total_advance_amount;
-
-        $UpdateOrderInfo->total_due_amount = $due;
-
-        $UpdateOrderInfo->sub_total = $sub_total;
-        $UpdateOrderInfo->total_amount = $grandTotalPrice;
-        $UpdateOrderInfo->total_payble_amount = $sub_total;
-        $UpdateOrderInfo->save();
-
-        $UpdateItemInfo->delete();
-
-        return response()->json(array(
-            'message' => "Purchase item deleted Successfull!",
-        ));
     }
+
 
     public function purchaseSave(Request $request)
     {

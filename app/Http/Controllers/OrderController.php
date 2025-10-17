@@ -768,151 +768,120 @@ class OrderController extends Controller
         }
     }
 
-
     public function purchaseSave(Request $request)
     {
         $details = $request->details;
         $items   = $request->items;
         $user    = $request->auth;
-        $item['update_price'] = 1;
-        $company_id = $details['company'] ?? 0;
 
-        $orderAdd = new Order();
+        try {
+            return DB::transaction(function () use ($details, $items, $user) {
 
-        $orderAdd->company_id           = $details['company'] ?? 0;
-        $orderAdd->company_invoice      = $details['invoice'] ? $details['invoice'] : 0;
-        $orderAdd->purchase_date        = date('Y-m-d');
-        $orderAdd->total_amount         = $details['total'] ? $details['total'] : 0;
-        $orderAdd->tax                  = $details['vat'] ? $details['vat'] : 0;
-        $orderAdd->tax_type             = $details['vat_percentage'] ? $details['vat_percentage'] : 0;
-        $orderAdd->discount             = $details['discount'] ? $details['discount'] : 0;
-        $orderAdd->sub_total            = $details['net_amount'] ? $details['net_amount'] : 0;
-        $orderAdd->total_payble_amount  = $details['net_amount'] ? $details['net_amount'] : 0;
-        $orderAdd->total_advance_amount = $details['advance'] ? $details['advance'] : 0;
-        $orderAdd->total_due_amount     = $details['due'] ? $details['due'] : 0;
+                $company_id = $details['company'] ?? 0;
 
-        if ($details['due']) {
-            $orderAdd->payment_type     = "DUE";
-            $orderAdd->has_due          = 1;
+                // ✅ Create new order
+                $order = new Order();
+                $order->company_id           = $company_id;
+                $order->company_invoice      = $details['invoice'] ?? '';
+                $order->purchase_date        = date('Y-m-d');
+                $order->total_amount         = $details['total'] ?? 0;
+                $order->tax                  = $details['vat'] ?? 0;
+                $order->tax_type             = $details['vat_percentage'] ?? '';
+                $order->discount             = $details['discount'] ?? 0;
+                $order->sub_total            = $details['net_amount'] ?? 0;
+                $order->total_payble_amount  = $details['net_amount'] ?? 0;
+                $order->total_advance_amount = $details['advance'] ?? 0;
+                $order->total_due_amount     = $details['due'] ?? 0;
+                $order->payment_type         = ($details['due'] ?? 0) > 0 ? 'DUE' : 'PAID';
+                $order->has_due              = ($details['due'] ?? 0) > 0 ? 1 : 0;
+                $order->status               = 'ACCEPTED';
+                $order->created_by           = $user->id;
+                $order->pharmacy_id          = $user->pharmacy_id;
+                $order->pharmacy_branch_id   = $user->pharmacy_branch_id;
+                $order->save();
+
+                $order->_createOrderInvoice($order->id, $user->pharmacy_branch_id);
+
+                // ✅ Loop through items
+                foreach ($items as $item) {
+                    $item['piece_per_box'] = max(1, (int)($item['piece_per_box'] ?? 1));
+                    $item['quantity']      = max(0, (int)($item['quantity'] ?? 0));
+                    $item['free_qty']      = max(0, (int)($item['free_qty'] ?? 0));
+
+                    $medicine = Medicine::find($item['medicine_id']);
+                    if (!$medicine) {
+                        throw new \Exception("{$item['medicine']} not found! Please check the list.");
+                    }
+
+                    $exp_date = !empty($item['exp_date'])
+                        ? date('Y-m-d', strtotime(str_replace('/', '-', $item['exp_date'])))
+                        : null;
+
+                    // ✅ Save OrderItem
+                    $orderItem = new OrderItem();
+                    $orderItem->order_id       = $order->id;
+                    $orderItem->medicine_id    = $item['medicine_id'];
+                    $orderItem->company_id     = $company_id;
+                    $orderItem->quantity       = $item['quantity'];
+                    $orderItem->free_qty       = $item['free_qty'];
+                    $orderItem->exp_date       = $exp_date;
+                    $orderItem->batch_no       = $item['batch_no'] ?? '';
+                    $orderItem->unit_price     = $item['box_mrp'] ?? 0;
+                    $orderItem->sub_total      = $item['amount'] ?? 0;
+                    $orderItem->mrp            = $item['box_mrp'] ?? 0;
+                    $orderItem->trade_price    = $item['box_trade_price'] ?? 0;
+                    $orderItem->percentage     = $item['percentage'] ?? 0;
+                    $orderItem->box_vat        = $item['box_vat'] ?? 0;
+                    $orderItem->total          = $item['amount'] ?? 0;
+                    $orderItem->pieces_per_box = $item['piece_per_box'];
+                    $orderItem->save();
+
+                    // ✅ Update medicine price if flagged
+                    if (!empty($item['update_price'])) {
+                        $medicine->update([
+                            'pcs_per_box' => $item['piece_per_box'],
+                            'tp_per_box'  => $item['box_trade_price'] ?? $medicine->tp_per_box,
+                            'vat_per_box' => $item['box_vat'] ?? $medicine->vat_per_box,
+                            'mrp_per_box' => $item['box_mrp'] ?? $medicine->mrp_per_box,
+                            'barcode'     => $item['bar_code'] ?? $medicine->barcode,
+                        ]);
+                    }
+
+                    // ✅ Update or create Product
+                    $new_qty = ($item['quantity'] + $item['free_qty']) * $item['piece_per_box'];
+
+                    $product = Product::firstOrNew([
+                        'medicine_id'        => $item['medicine_id'],
+                        'pharmacy_id'        => $user->pharmacy_id,
+                        'pharmacy_branch_id' => $user->pharmacy_branch_id,
+                    ]);
+
+                    $product->quantity    = ($product->exists ? $product->quantity : 0) + $new_qty;
+                    $product->percentage  = $item['percentage'] ?? $product->percentage;
+                    $product->company_id  = $company_id;
+
+                    if (!empty($item['update_price'])) {
+                        $product->mrp = $item['box_mrp'] ?? $product->mrp;
+                        $product->tp  = $item['box_trade_price'] ?? $product->tp;
+                        $product->low_stock_qty = $item['low_stock_qty'] ?? $product->low_stock_qty;
+                    }
+
+                    $product->save();
+                }
+
+                return response()->json(['message' => 'Purchase successful!'], 200);
+            });
+
+        } catch (\Throwable $e) {
+            DB::rollBack(); // ✅ ensure rollback for safety
+            \Log::error('Purchase save failed: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Purchase save failed.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-        $orderAdd->status               = "ACCEPTED";
-        $orderAdd->created_by           = $user->id;
-        $orderAdd->pharmacy_id   = $user->pharmacy_id;
-        $orderAdd->pharmacy_branch_id   = $user->pharmacy_branch_id;
-        $orderAdd->save();
-
-        $OrderId = $orderAdd->id;
-
-        $orderAdd->_createOrderInvoice($OrderId, $user->pharmacy_branch_id);
-
-        foreach ($items as $item) :
-            $medicine_id = $item['medicine_id'];
-            $medicine = Medicine::where('id', $medicine_id)->get();
-            if (sizeof($medicine)) {
-                // $company_id = $medicine[0]->company_id;
-            } else {
-                DB::table('order_items')->where('order_id', $OrderId)->delete();
-                $DeleteOrderInfo = Order::find($OrderId);
-                $DeleteOrderInfo->delete();
-
-                $message = $item['medicine'] . ", Medecine Not Found! Please check the list!";
-                return response()->json(['message' => $message], 404);
-            }
-
-            if (empty($item['box_vat'])) {
-                $item['box_vat'] = 0;
-            }
-
-            $item['piece_per_box'] = $item['piece_per_box'] ?? 0;
-
-            $exp_date = date('Y-m-d', strtotime("1970-01-01"));
-            if ($item['exp_date']) {
-                $date = str_replace('/', '-', $item['exp_date']);
-                $exp_date = date('Y-m-d', strtotime($date));
-            }
-
-            $itemSave = new OrderItem();
-            $itemSave->medicine_id      = $item['medicine_id'];
-            $itemSave->company_id       = $company_id;
-            $itemSave->quantity         = $item['quantity'];
-            $itemSave->free_qty         = $item['free_qty'] ?? 0;
-            $itemSave->order_id         = $OrderId;
-            $itemSave->exp_date         = $exp_date;
-            $itemSave->batch_no         = $item['batch_no'];
-            $itemSave->unit_price       = $item['box_mrp'];
-            $itemSave->sub_total        = $item['amount'];
-            $itemSave->mrp              = $item['box_mrp'];
-            $itemSave->trade_price      = $item['box_trade_price'];
-            $itemSave->percentage      = $item['percentage'];
-            $itemSave->box_vat          = $item['box_vat'] ?? 0;
-            $itemSave->total            = $item['amount'];
-            $itemSave->pieces_per_box   = 1;
-            // $itemSave->pieces_per_box   = $item['piece_per_box'];
-            $itemSave->save();
-
-            if ($item['update_price']) {
-                $UpdateMedicine = Medicine::find($medicine_id);
-                $UpdateMedicine->pcs_per_box = $item['piece_per_box'] ? $item['piece_per_box'] : 0;
-                $UpdateMedicine->tp_per_box  = $item['box_trade_price'] ? $item['box_trade_price'] : 0;
-                $UpdateMedicine->vat_per_box = $item['box_vat'] ? $item['box_vat'] : 0;
-                $UpdateMedicine->mrp_per_box = $item['box_mrp'] ? $item['box_mrp'] : 0;
-                if (!empty($item['bar_code'])) {
-                    $UpdateMedicine->barcode = $item['bar_code'] ? $item['bar_code'] : '';
-                }
-                $UpdateMedicine->save();
-            }
-
-            // $per_item_vat = ($item['box_trade_price'] + $item['box_vat']) / ($item['piece_per_box'] == 0 ? 1 : $item['piece_per_box']);
-
-            $isProcuctExist = Product::where('medicine_id', $medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
-            $free_qty = !empty($item['free_qty']) ? ($item['free_qty'] * $item['piece_per_box']) : 0;
-            
-            if (!empty($isProcuctExist)) {
-                $procuctId = $isProcuctExist->id;
-
-                $UpdateProduct = $isProcuctExist;
-
-                $UpdateProduct->quantity            = $free_qty + $UpdateProduct->quantity + $item['quantity'];
-
-                if ($item['update_price']) {
-                    $UpdateProduct->mrp             = $item['box_mrp'];
-                    $UpdateProduct->tp              = $item['box_trade_price'];
-
-                    if (!empty($item['low_stock_qty'])) {
-                        $UpdateProduct->low_stock_qty   = $item['low_stock_qty'] ? $item['low_stock_qty'] : 0;
-                    }
-                }
-                // $UpdateProduct->batch_no            = $item['batch_no'];
-                $UpdateProduct->percentage            = $item['percentage'] ?? 0;
-                $UpdateProduct->company_id          = $company_id ? $company_id : 0;
-                $UpdateProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
-                $UpdateProduct->save();
-            } else {
-                $InsertProduct = new Product();
-                $InsertProduct->medicine_id         = $medicine_id;
-                $InsertProduct->quantity            = $free_qty + $item['quantity'];
-                if ($item['update_price']) {
-                    $InsertProduct->mrp             = $item['box_mrp'];
-                    $InsertProduct->tp              = $item['box_trade_price'];
-
-                    if (!empty($item['low_stock_qty'])) {
-                        $InsertProduct->low_stock_qty   = $item['low_stock_qty'] ? $item['low_stock_qty'] : 0;
-                    }
-                }
-
-                $InsertProduct->percentage            = $item['percentage'] ?? 0;
-                // $InsertProduct->batch_no            = $item['batch_no'];
-                $InsertProduct->company_id          = $company_id ? $company_id : 0;
-                $InsertProduct->pharmacy_id  = $user->pharmacy_id;
-                $InsertProduct->pharmacy_branch_id  = $user->pharmacy_branch_id;
-                $InsertProduct->save();
-            }
-
-        endforeach;
-
-        return response()->json(array(
-            'data' => "Purchase Successfull!"
-        ));
     }
 
     public function purchaseList(Request $request)

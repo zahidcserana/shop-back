@@ -279,44 +279,85 @@ class OrderController extends Controller
 
     public function productSave(Request $request)
     {
-        $type_id = $request->type_id ? $request->type_id : 0;
+        try {
+            $user = $request->auth;
 
-        $user = $request->auth;
+            // ✅ Manual validator for Lumen
+            $validator = Validator::make($request->all(), [
+                'product_name'   => 'required|string|max:255',
+                'generic'        => 'nullable|string|max:255',
+                'brand_id'       => 'nullable|integer|exists:brands,id',
+                'product_type'   => 'nullable|string|max:255',
+                'type_id'        => 'required|integer',
+                'barcode'        => 'nullable|string|max:255',
+            ]);
 
-        if (!$type_id || !$request->product_name) {
-            return response()->json(array(
-                'data' => "Product Added unsuccessful!",
-                'status' => false
-            ));
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $validated = $validator->validated();
+            
+            // ✅ Check if product already exists
+            $exists = Medicine::where('brand_name', 'like', $validated['product_name'])
+                    ->whereHas('products', function ($query) use ($request) {
+                        $query->where(function ($sub) use ($request) {
+                            $sub->where('products.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+                                ->orWhere('products.pharmacy_id', $request->auth->pharmacy_id);
+                        });
+                    })
+                    ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'data'   => 'Product already exists!',
+                    'status' => false
+                ]);
+            }
+
+            // ✅ Use DB transaction for data consistency
+            DB::beginTransaction();
+
+            $medicine = Medicine::create([
+                'brand_name'       => $validated['product_name'],
+                'generic_name'     => $validated['generic'] ?? null,
+                'brand_id'         => $validated['brand_id'] ?? null,
+                'product_type'     => $validated['product_type'] ?? null,
+                'medicine_type_id' => $validated['type_id'],
+                'created_by'       => $user->id,
+            ]);
+
+            // ✅ Generate barcode if not provided
+            $medicine->barcode = $validated['barcode'] ?? (Carbon::now()->timestamp . $medicine->id);
+            $medicine->save();
+
+            Product::firstOrCreate([
+                'medicine_id'        => $medicine->id,
+                'pharmacy_id'        => $user->pharmacy_id,
+                'pharmacy_branch_id' => $user->pharmacy_branch_id,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'data'   => 'Product added successfully!',
+                'status' => true
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            \Log::error('Product save failed: ' . $e->getMessage());
+
+            return response()->json([
+                'data'   => 'Product add unsuccessful!',
+                'status' => false,
+                'error'  => $e->getMessage(),
+            ], 500);
         }
-
-        $isExist = Medicine::where('brand_name', 'like', $request->product_name)
-            ->where('generic_name', $request->generic)
-            ->where('medicine_type_id', $type_id)
-            ->get();
-
-        if (sizeof($isExist)) {
-            return response()->json(array(
-                'data' => "Product Added unsuccessful!",
-                'status' => false
-            ));
-        } else {
-            $AddMedicine = new Medicine();
-            $AddMedicine->brand_name = $request->product_name;
-            $AddMedicine->generic_name = $request->generic;
-            $AddMedicine->brand_id = $request->brand_id;
-            $AddMedicine->medicine_type_id = $type_id;
-            $AddMedicine->created_by = $user->id;
-            $AddMedicine->product_type = $request->product_type;
-            $AddMedicine->save();
-
-            $AddMedicine->barcode = Carbon::now()->timestamp . $AddMedicine->id;
-            $AddMedicine->save();
-        }
-        return response()->json(array(
-            'data' => "Product Added Successful!",
-            'status' => true
-        ));
     }
 
     public function productUpdate(Request $request, $id)

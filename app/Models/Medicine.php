@@ -30,4 +30,9 @@ class Medicine extends Model
   {
     return $this->hasMany(StockBalanceItem::class, 'product_id');
   }
+
+  public function products()
+  {
+    return $this->hasMany(Product::class, 'medicine_id');
+  }
 }

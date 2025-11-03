@@ -11,3 +11,5 @@ TRUNCATE `sales`;
 TRUNCATE `sale_items`;
 TRUNCATE `stock_balances`;
 TRUNCATE `stock_balance_items`;
+
+rm -f bootstrap/cache/*.php

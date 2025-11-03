@@ -7,6 +7,7 @@ use Validator;
 use Carbon\Carbon;
 use App\Models\Cart;
 use App\Models\Sale;
+use App\Models\Product;
 use App\Models\Order;
 use App\Models\CartItem;
 use App\Models\Medicine;
@@ -200,17 +201,13 @@ class SaleController extends Controller
     $this->validate($request, [
       'token' => 'required',
     ]);
+    
     $orderModel = new Sale();
     $order = $orderModel->makeOrder($data);
-    // if($order['success'] == true && $data['sendsms']) {
-    //   $data = array(
-    //     'mobile' => $order['data']['customer_mobile'],
-    //     'message' => 'Thank you for your order. Your Order Invoice is '. $order['data']['invoice'] . '.'
-    //   );
-    //   $this->_sendMessage($data);
-    // }
+
     return response()->json($order);
   }
+
   private function _sendMessage($data)
   {
     $curl = curl_init();
@@ -503,7 +500,7 @@ class SaleController extends Controller
 
     $changeLog = $this->_changeLog($itemData, $data);
     $saleItem = new SaleItem();
-    $saleItem->updateInventoryQuantity($itemData, $itemData->quantity - $data['new_quantity'], 'add');
+    $saleItem->returnUpdateInventoryQuantity($itemData, $itemData->quantity - $data['new_quantity'], 'add');
 
     $input = array(
       'quantity' => $data['new_quantity'],
@@ -1227,5 +1224,44 @@ class SaleController extends Controller
   //     return $where;
   // }
 
+  public function supplierSaleReport(Request $request)
+  {
+    $user = $request->auth;
 
+    // Date filter (default: today)
+    $today = Carbon::today();
+    $startDate = $today->copy()->toDateString();
+    $endDate = $today->copy()->toDateString();
+    
+    if (!empty($request['date_range'])) {
+        $dateRange = explode(',', $request['date_range']);
+        $startDate = isset($dateRange[0]) ? Carbon::parse($dateRange[0])->toDateString() : $today->toDateString();
+        $endDate = isset($dateRange[1]) ? Carbon::parse($dateRange[1])->toDateString() : $startDate;
+    }
+
+    $report = DB::table('sale_items')
+        ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+        ->join('products', 'sale_items.medicine_id', '=', 'products.medicine_id')
+        ->join('medicine_companies', 'products.company_id', '=', 'medicine_companies.id')
+        ->whereBetween('sales.sale_date', [$startDate, $endDate])
+        ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
+        ->select(
+            'medicine_companies.company_name',
+            DB::raw('SUM(sale_items.quantity) as sold_qty'),
+            DB::raw('SUM(sale_items.quantity * sale_items.tp) as sold_tp'),
+            DB::raw('SUM(sale_items.quantity * sale_items.unit_price) as sold_amount'),
+            DB::raw('SUM((sale_items.unit_price - sale_items.tp) * sale_items.quantity) as profit_amount'),
+            DB::raw('ROUND(
+                SUM((sale_items.unit_price - sale_items.tp) * sale_items.quantity) 
+                / NULLIF(SUM(sale_items.quantity * sale_items.unit_price), 0) * 100, 2
+            ) as gp_percent')
+        )
+        ->groupBy('medicine_companies.company_name')
+        ->get();
+
+    return response()->json([
+        'data' => $report,
+        'status' => true
+    ]);
+  }
 }

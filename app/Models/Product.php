@@ -7,5 +7,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
- use SoftDeletes;
+    use SoftDeletes;
+    protected $guarded = [];
+
+    public function company()
+    {
+        return $this->belongsTo(MedicineCompany::class, 'company_id');
+    }
 }

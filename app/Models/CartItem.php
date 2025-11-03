@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CartItem extends Model
 {
-     use SoftDeletes;
-     protected $guarded = [];
+    use SoftDeletes;
+    protected $guarded = [];
 
     public function addItem($data)
     {
@@ -26,6 +26,7 @@ class CartItem extends Model
             'product_type' => $medicineData->medicine_type_id,
             // 'company_id' => $medicineData->company_id,
             'quantity' => $data['quantity'],
+            'free_quantity' => $data['free_quantity'] ?? 0,
             // 'batch_no' => $medicineInfo ? $medicineInfo->batch_no : null,
             // 'exp_date' => $medicineInfo? $medicineInfo->exp_date : null,
             'cart_id' => $data['cart_id'],

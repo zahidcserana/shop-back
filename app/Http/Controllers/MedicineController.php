@@ -188,26 +188,44 @@ class MedicineController extends Controller
 
     public function search(Request $request)
     {
-        $str = $request->input('search');
+        try {
+            $str = $request->input('search');
 
-        // $companyData = $request->input('company') ? MedicineCompany::where('company_name', 'like', $request->input('company'))->first() : 0;
+            $medicines = Medicine::where(function ($q) use ($str) {
+                    $q->where('brand_name', 'like', '%' . $str . '%')
+                    ->orWhere('barcode', 'like', '%' . $str . '%');
+                })
+                ->whereHas('products', function ($query) use ($request) {
+                    $query->where(function ($sub) use ($request) {
+                        $sub->where('products.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+                            ->orWhere('products.pharmacy_id', $request->auth->pharmacy_id);
+                    });
+                })
+                ->orderBy('brand_name', 'asc')
+                ->get();
 
-        // $company_id =  $companyData ? $companyData->id : 0;
+            $data = $medicines->map(function ($medicine) {
+                return [
+                    'id'    => $medicine->id,
+                    'name'  => $medicine->brand_name,
+                    'brand' => $medicine->brand->name ?? '',
+                    'type'  => $medicine->medicineType->name ?? '',
+                ];
+            });
 
-        $medicines = Medicine::where('brand_name', 'like', '%'. $str . '%')
-            ->orWhere('barcode', 'like', '%'. $str . '%')
-            // ->when($company_id, function ($query, $company_id) {
-            //     return $query->where('company_id', $company_id);
-            // })
-            ->orderBy('brand_name', 'asc')
-            ->get();
+            return response()->json($data);
 
-        $data = array();
-        foreach ($medicines as $medicine) {
-            $data[] = ['id' => $medicine->id, 'name' => $medicine->brand_name , 'brand' => $medicine->brand->name?? '', 'type' => $medicine->medicineType->name??''];
+        } catch (\Throwable $e) {
+            \Log::error('Medicine search failed: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Search failed.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-        return response()->json($data);
     }
+
 
     public function searchByShop(Request $request)
     {
@@ -274,9 +292,12 @@ class MedicineController extends Controller
 
     public function getAvailableQuantity(Request $request)
     {
+        $user    = $request->auth;
+
         $product = DB::table('products')
             ->select(DB::raw('SUM(quantity) as available_quantity'))
             ->where('medicine_id', $request->input('medicine_id'))
+            ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
             ->first();
 
         $cartItem = new CartItem();

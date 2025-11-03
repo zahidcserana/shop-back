@@ -97,7 +97,7 @@ class ProductController extends Controller
               'medicine_types.name as type',
               'brands.name as brand'
           )
-          ->orderBy('medicines.brand_name', 'asc')
+          ->orderBy('medicines.id', 'desc')
           ->offset($offset)
           ->limit($limit)
           ->get();

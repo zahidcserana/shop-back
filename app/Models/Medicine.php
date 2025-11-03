@@ -35,4 +35,18 @@ class Medicine extends Model
   {
     return $this->hasMany(Product::class, 'medicine_id');
   }
+
+  public function scopeExistsInBranch($query, $productName, $auth, $ignoreId = null)
+  {
+      return $query->whereRaw('LOWER(brand_name) = ?', [strtolower($productName)])
+          ->when($ignoreId, function ($q) use ($ignoreId) {
+              $q->where('id', '!=', $ignoreId); // ✅ ignore current record
+          })
+          ->whereHas('products', function ($query) use ($auth) {
+              $query->where(function ($sub) use ($auth) {
+                  $sub->where('pharmacy_branch_id', $auth->pharmacy_branch_id)
+                      ->orWhere('pharmacy_id', $auth->pharmacy_id);
+              });
+          });
+  }
 }

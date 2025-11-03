@@ -301,15 +301,7 @@ class OrderController extends Controller
 
             $validated = $validator->validated();
             
-            // ✅ Check if product already exists
-            $exists = Medicine::where('brand_name', 'like', $validated['product_name'])
-                    ->whereHas('products', function ($query) use ($request) {
-                        $query->where(function ($sub) use ($request) {
-                            $sub->where('products.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
-                                ->orWhere('products.pharmacy_id', $request->auth->pharmacy_id);
-                        });
-                    })
-                    ->exists();
+            $exists = Medicine::existsInBranch($validated['product_name'], $request->auth)->exists();
 
             if ($exists) {
                 return response()->json([
@@ -362,37 +354,75 @@ class OrderController extends Controller
 
     public function productUpdate(Request $request, $id)
     {
-        $type_id = $request->type_id ?? 0;
-
         $user = $request->auth;
 
-        if (!$type_id || !$request->product_name) {
-            return response()->json(array(
-                'data' => "Product Added unsuccessful!",
-                'status' => false
-            ));
+        // ✅ Validate input
+        $validator = Validator::make($request->all(), [
+            'product_name'   => 'required|string|max:255',
+            'generic'        => 'nullable|string|max:255',
+            'brand_id'       => 'nullable|integer|exists:brands,id',
+            'product_type'   => 'nullable|string|max:255',
+            'type_id'        => 'required|integer',
+            'barcode'        => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
-        if (empty($id) || empty(Medicine::find($id))) {
-            return response()->json(array(
-                'data' => "Invalid ID",
-                'status' => false
-            ));
-        } else {
-            $AddMedicine = Medicine::find($id);
-            $AddMedicine->brand_name = $request->product_name;
-            $AddMedicine->generic_name = $request->generic;
-            $AddMedicine->brand_id = $request->brand_id;
-            $AddMedicine->medicine_type_id = $type_id;
-            $AddMedicine->created_by = $user->id;
-            $AddMedicine->product_type = $request->product_type;
-            $AddMedicine->save();
+        $validated = $validator->validated();
+
+        $exists = Medicine::existsInBranch($validated['product_name'], $request->auth, $id)->exists();
+
+        if ($exists) {
+            return response()->json([
+                'status' => false,
+                'data'   => 'Duplicate product name!',
+            ]);
         }
 
-        return response()->json(array(
-            'data' => "Product Added Successful!",
-            'status' => true
-        ));
+        try {
+            DB::beginTransaction();
+
+            $medicine = Medicine::find($id);
+
+            if (!$medicine) {
+                return response()->json([
+                    'status' => false,
+                    'data'   => 'Invalid ID',
+                ], 404);
+            }
+
+            // ✅ Update only changed fields
+            $medicine->update([
+                'brand_name'       => $validated['product_name'],
+                'barcode'          => $validated['barcode'] ?? $medicine->barcode,
+                'generic_name'     => $validated['generic'] ?? $medicine->generic_name,
+                'brand_id'         => $validated['brand_id'] ?? $medicine->brand_id,
+                'medicine_type_id' => $validated['type_id'],
+                'product_type'     => $validated['product_type'] ?? $medicine->product_type,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => true,
+                'data'   => 'Product updated successfully!',
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            \Log::error('Product update failed: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'data'   => 'Product update unsuccessful!',
+                'error'  => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function productTypeSave(Request $request)

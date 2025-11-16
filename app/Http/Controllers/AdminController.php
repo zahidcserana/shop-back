@@ -40,8 +40,8 @@ class AdminController extends Controller
                 'pharmacy_shop_code' => $request->pharmacy_shop_code,
                 'pharmacy_shop_name' => $request->client_name,
                 'pharmacy_shop_owner_name' => $request->owner_name,
-                'pharmacy_shop_licence_no' => $request->licence_no,
-                'pharmacy_shop_branch_owner_nid' => $request->owner_nid,
+                'pharmacy_shop_licence_no' => $request->licence_no ?? '',
+                'pharmacy_shop_branch_owner_nid' => $request->owner_nid ?? '',
             ]);
 
             $shop = PharmacyBranch::create([
@@ -55,7 +55,7 @@ class AdminController extends Controller
                 'branch_contact_person_mobile' => $request->branch_contact_person_mobile,
             ]);
 
-            $shop = PaymentType::create([
+            PaymentType::create([
                 'name' => PaymentType::$TYPE_CASH,
                 'account_no' => '',
                 'pharmacy_branch_id' => $shop->id,

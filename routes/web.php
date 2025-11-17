@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Hash;
 
 $router->get('/', function () use ($router) {
     // $aa = base64_encode("6DAA0C0782E44BA5A4C3AD8A37724FA6:AcZnJGHA9yeqVF8N4JwRIZVnp_0jfREOLBWcQDLPnhW_zTfX");
-    // dd(Hash::make('pFashion'));
+    // dd(Hash::make('secret'));
 
     return $router->app->version();
 });
@@ -13,6 +13,10 @@ $router->group(
     ['prefix' => 'api'],
     function () use ($router) {
         $router->get('/', function () use ($router) {
+            return $router->app->version();
+        });
+        $router->get('/hi', function () use ($router) {
+            dd('hi');
             return $router->app->version();
         });
 

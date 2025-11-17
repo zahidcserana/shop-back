@@ -12,6 +12,10 @@ class OrderItem extends Model
     use SoftDeletes;
     protected $guarded = [];
 
+    public const STATUS_RETURNED = 'RETURNED';
+    public const STATUS_OK = 'OK';
+
+
     public function addItem($orderId, $cartId)
     {
         $cartItemModel = new CartItem();

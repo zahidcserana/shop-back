@@ -164,5 +164,83 @@ class AdminController extends Controller
             'message' => "Reset successfully"
         ], 200); // ✅ Correct status code
     }
+    
+    public function cleanDatabase($clientId)
+    {
+        try {
+            DB::transaction(function () use ($clientId) {
+                $this->cleanPurchaseOrders($clientId);
+                $this->cleanSales($clientId);
+                $this->cleanProductsAndMedicines($clientId);
+            });
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Database cleaned successfully.'
+            ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to clean database.',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function cleanProductsAndMedicines($clientId)
+    {
+        // Get product IDs and related medicine IDs
+        $productData = DB::table('products')
+            ->where('pharmacy_branch_id', $clientId)
+            ->select('id', 'medicine_id')
+            ->get();
+
+        $productIds  = $productData->pluck('id');
+        $medicineIds = $productData->pluck('medicine_id');
+
+        // Delete products first
+        if ($productIds->isNotEmpty()) {
+            DB::table('products')->whereIn('id', $productIds)->delete();
+        }
+
+        // Delete medicines only belonging to this branch
+        if ($medicineIds->isNotEmpty()) {
+            DB::table('medicines')->whereIn('id', $medicineIds)->delete();
+        }
+    }
+
+    public function cleanPurchaseOrders($clientId)
+    {
+        // Get all purchase order IDs
+        $orderIds = DB::table('orders')
+            ->where('pharmacy_branch_id', $clientId)
+            ->pluck('id');
+
+        if ($orderIds->isNotEmpty()) {
+            // Delete purchase order items
+            DB::table('order_items')->whereIn('order_id', $orderIds)->delete();
+        }
+
+        // Delete purchase orders
+        DB::table('orders')->where('pharmacy_branch_id', $clientId)->delete();
+    }
+
+    public function cleanSales($clientId)
+    {
+        // Get sale IDs
+        $saleIds = DB::table('sales')
+            ->where('pharmacy_branch_id', $clientId)
+            ->pluck('id');
+
+        if ($saleIds->isNotEmpty()) {
+            // Delete sale items
+            DB::table('sale_items')->whereIn('sale_id', $saleIds)->delete();
+        }
+
+        // Delete sales
+        DB::table('sales')->where('pharmacy_branch_id', $clientId)->delete();
+    }
 
 }

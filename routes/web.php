@@ -242,7 +242,7 @@ $router->group(
                     ['middleware' => 'jwt.auth'],
                     function () use ($router) {
                         // $router->post('clear', ['uses' => 'AdminController@reset']);
-                        $router->post('clean-db/{clientId}', ['uses' => 'AdminController@cleanDatabase']);
+                        // $router->post('clean-db/{clientId}', ['uses' => 'AdminController@cleanDatabase']);
                         $router->get('shops', ['uses' => 'AdminController@shops']);
                         $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
                         $router->get('branches', ['uses' => 'AdminController@branches']);

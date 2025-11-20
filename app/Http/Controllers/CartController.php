@@ -14,23 +14,31 @@ class CartController extends Controller
 {
     public function addToCart(Request $request)
     {
-        $user = $request->auth;
-        $data = $request->all();
+        try {
+            $user = $request->auth;
+            $data = $request->all();
 
-        $this->validate($request, [
-            'medicine_id' => 'required',
-            'quantity' => 'required'
-        ]);
-        $cart = Cart::where('token', $data['token'])->first();
+            $this->validate($request, [
+                'medicine_id' => 'required',
+                'quantity' => 'required'
+            ]);
+            $cart = Cart::where('token', $data['token'])->first();
 
-        if ($cart && CartItem::where('medicine_id', $data['medicine_id'])->where('cart_id', $cart->id)->first()) {
-            return response()->json(['success' => false, 'error' => 'Already added this item!']);
+            if ($cart && CartItem::where('medicine_id', $data['medicine_id'])->where('cart_id', $cart->id)->first()) {
+                return response()->json(['success' => false, 'error' => 'Already added this item!']);
+            }
+
+            $cartModel = new Cart();
+            $cart = $cartModel->AddToCart($data, $user);
+
+            return response()->json($cart);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong!',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-
-        $cartModel = new Cart();
-        $cart = $cartModel->AddToCart($data, $user);
-
-        return response()->json($cart);
     }
 
     public function view($token)

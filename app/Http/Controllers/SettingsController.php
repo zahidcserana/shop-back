@@ -22,7 +22,7 @@ class SettingsController extends Controller
 
             return response()->json(['status' => true, 'message' => "Product Type Updated Successfully!"], 201);
         } else {
-            $exist = MedicineType::where('name', 'like', $request->type)->first();
+            $exist = MedicineType::where('name', 'like', $request->type)->where('pharmacy_branch_id', $shop_id)->first();
 
             if (!$exist) {
                 $medicineType = new MedicineType();
@@ -79,7 +79,9 @@ class SettingsController extends Controller
 
             return response()->json(['status' => true, 'message' => "Product Brand Updated Successfully!"], 201);
         } else {
-            $exist = Brand::where('name', 'like', $request->name)->first();
+            $exist = Brand::where('name', $request->name)
+                ->where('pharmacy_branch_id', $shop_id)
+                ->first();
 
             if (!$exist) {
                 $brand = new Brand();

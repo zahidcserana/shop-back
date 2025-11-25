@@ -245,6 +245,7 @@ $router->group(
                         // $router->post('clean-db/{clientId}', ['uses' => 'AdminController@cleanDatabase']);
                         $router->get('shops', ['uses' => 'AdminController@shops']);
                         $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
+                        $router->post('shops/update/{branchId}', ['uses' => 'AdminController@updateShop']);
                         $router->get('branches', ['uses' => 'AdminController@branches']);
                     }
                 );

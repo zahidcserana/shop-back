@@ -37,79 +37,98 @@ class AuthController extends Controller
 
     public function userAuthenticate(User $user)
     {
-        $this->validate($this->request, [
-            'email' => 'required',
-            'password' => 'required'
-        ]);
-        $user = User::where('email', $this->request->email)->first();
-        if (!$user) {
-
+        try {
+            $this->validate($this->request, [
+                'email' => 'required',
+                'password' => 'required'
+            ]);
+            $user = User::where('email', $this->request->email)->first();
+            if (!$user) {
+    
+                return response()->json([
+                    'error' => 'User does not exist.'
+                ], 401);
+            }
+    
+            // Verify the password and generate the token
+            if (Hash::check($this->request->password, $user->password)) {
+                $branch = PharmacyBranch::find($user->pharmacy_branch_id);
+                $logo = $branch->branch_image ? url($branch->branch_image) : null;
+    
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Login Successful',
+                    'data' => [
+                        'token' => $this->jwt($user),
+                        'email' => $user->email,
+                        'id' => $user->id,
+                        'logo' => $logo,
+                        'user_type' => $user->user_type,
+                        'pos_version' => $user->pos_version ?? 1,
+                        'config' => !empty($branch->branch_config) ? json_decode($branch->branch_config, true) : []
+                    ]
+                ], 200);
+            }
             return response()->json([
-                'error' => 'User does not exist.'
-            ], 401);
-        }
-
-        // Verify the password and generate the token
-        if (Hash::check($this->request->password, $user->password)) {
-            $config = PharmacyBranch::find($user->pharmacy_branch_id);
-
+                'status' => 403,
+                'error' => 'Login details provided does not exit.'
+            ], 403);
+        } catch (\Throwable $th) {
             return response()->json([
-                'status' => 200,
-                'message' => 'Login Successful',
-                'data' => [
-                    'token' => $this->jwt($user),
-                    'email' => $user->email,
-                    'id' => $user->id,
-                    'user_type' => $user->user_type,
-                    'pos_version' => $user->pos_version ?? 1,
-                    'config' => !empty($config->branch_config) ? json_decode($config->branch_config, true) : []
-                ]
-            ], 200);
+                'data'   => 'Something went wrong!',
+                'status' => false,
+                'error'  => $e->getMessage(),
+            ], 500);
         }
-        return response()->json([
-            'status' => 403,
-            'error' => 'Login details provided does not exit.'
-        ], 403);
     }
 
     public function adminAuthenticate(User $user)
     {
-        $this->validate($this->request, [
-            'email' => 'required',
-            'password' => 'required'
-        ]);
-        $user = User::where('email', $this->request->email)->first();
-        if (!$user) {
+        try {
+            $this->validate($this->request, [
+                'email' => 'required',
+                'password' => 'required'
+            ]);
 
-            return response()->json([
-                'error' => 'User does not exist.'
-            ], 401);
-        }
+            $user = User::where('email', $this->request->email)->first();
+            if (!$user) {
 
-        // Verify the password and generate the token
-        if (Hash::check($this->request->password, $user->password)) {
-            if (!$user->is_admin) {
                 return response()->json([
-                    'error' => 'Admin does not exist.'
+                    'error' => 'User does not exist.'
                 ], 401);
             }
 
+            // Verify the password and generate the token
+            if (Hash::check($this->request->password, $user->password)) {
+                if (!$user->is_admin) {
+                    return response()->json([
+                        'error' => 'Admin does not exist.'
+                    ], 401);
+                }
+
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Login Successful',
+                    'data' => [
+                        'token' => $this->jwt($user),
+                        'email' => $user->email,
+                        'id' => $user->id,
+                        'user_type' => $user->user_type,
+                        'pos_version' => 1,
+                        'config' => ''
+                    ]
+                ], 200);
+            }
             return response()->json([
-                'status' => 200,
-                'message' => 'Login Successful',
-                'data' => [
-                    'token' => $this->jwt($user),
-                    'email' => $user->email,
-                    'id' => $user->id,
-                    'user_type' => $user->user_type,
-                    'pos_version' => 1,
-                    'config' => ''
-                ]
-            ], 200);
+                'status' => 403,
+                'error' => 'Login details provided does not exit.'
+            ], 403);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'data'   => 'Something went wrong!',
+                'status' => false,
+                'error'  => $e->getMessage(),
+            ], 500);
         }
-        return response()->json([
-            'status' => 403,
-            'error' => 'Login details provided does not exit.'
-        ], 403);
     }
 }

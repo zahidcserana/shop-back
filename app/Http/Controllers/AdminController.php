@@ -30,60 +30,194 @@ class AdminController extends Controller
         return response()->json($list);
     }
 
-
     public function storeShop(Request $request)
     {
         $exist = Pharmacy::where('pharmacy_shop_code', $request->pharmacy_shop_code)->first();
 
-        if (!$exist) {
-            $client = Pharmacy::create([
-                'pharmacy_shop_code' => $request->pharmacy_shop_code,
-                'pharmacy_shop_name' => $request->client_name,
-                'pharmacy_shop_owner_name' => $request->owner_name,
-                'pharmacy_shop_licence_no' => $request->licence_no ?? '',
-                'pharmacy_shop_branch_owner_nid' => $request->owner_nid ?? '',
-            ]);
+        if ($exist) {
+            return response()->json([
+                'status' => false,
+                'message' => "Duplicate shop code"
+            ], 409);
+        }
 
-            $shop = PharmacyBranch::create([
-                'pharmacy_id' => $client->id,
-                'branch_name' => $request->branch_name,
-                'branch_city' => $request->branch_city,
-                'branch_area' => $request->branch_area,
-                'branch_full_address' => $request->branch_full_address,
-                'branch_mobile' => $request->branch_mobile,
-                'branch_contact_person_name' => $request->branch_contact_person_name,
-                'branch_contact_person_mobile' => $request->branch_contact_person_mobile,
-            ]);
+        $client = Pharmacy::create([
+            'pharmacy_shop_code' => $request->pharmacy_shop_code,
+            'pharmacy_shop_name' => $request->client_name,
+            'pharmacy_shop_owner_name' => $request->owner_name,
+            'pharmacy_shop_licence_no' => $request->licence_no ?? '',
+            'pharmacy_shop_branch_owner_nid' => $request->owner_nid ?? '',
+        ]);
 
-            PaymentType::create([
-                'name' => PaymentType::$TYPE_CASH,
-                'account_no' => '',
-                'pharmacy_branch_id' => $shop->id,
-            ]);
+        // Save image to storage
+        $imagePath = $this->saveLogo($request->branch_image, 'branch');
 
-            $userData =[
-                'name' => $request->client_name,
-                'pharmacy_branch_id' => $shop->id,
-                'pharmacy_id' => $client->id,
-                'user_type' => 'ADMIN',
-                'user_mobile' => $request->branch_mobile,
-                'email' => $request->email,
-                'password' => $request->password,
-            ];
-            $userModel = new User();
-            $userModel->createUser($userData);
+        $shop = PharmacyBranch::create([
+            'pharmacy_id' => $client->id,
+            'branch_name' => $request->branch_name,
+            'branch_image' => $imagePath,
+            'branch_city' => $request->branch_city,
+            'branch_area' => $request->branch_area,
+            'branch_full_address' => $request->branch_full_address,
+            'branch_mobile' => $request->branch_mobile,
+            'branch_contact_person_name' => $request->branch_contact_person_name,
+            'branch_contact_person_mobile' => $request->branch_contact_person_mobile,
+        ]);
+
+        PaymentType::create([
+            'name' => PaymentType::$TYPE_CASH,
+            'account_no' => '',
+            'pharmacy_branch_id' => $shop->id,
+        ]);
+
+        (new User())->createUser([
+            'name' => $request->client_name,
+            'pharmacy_branch_id' => $shop->id,
+            'pharmacy_id' => $client->id,
+            'user_type' => 'ADMIN',
+            'user_mobile' => $request->branch_mobile,
+            'email' => $request->email,
+            'password' => $request->password,
+        ]);
+
+        return response()->json([
+            'status' => true,
+            'message' => "Client added successfully!",
+            'data' => $client
+        ], 201);
+    }
+
+    private function deleteImageIfExists($path)
+    {
+        if (!$path) return;
+
+        $fullPath = base_path($path);
+        
+        if (file_exists($fullPath)) {
+            unlink($fullPath);
+        }
+    }
+
+    public function updateShop(Request $request, $branchId)
+    {
+        try {
+            $shop = PharmacyBranch::find($branchId);
+
+            if (!$shop) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Branch not found'
+                ], 404);
+            }
+
+            // -----------------------------
+            // UPDATE IMAGE IF PROVIDED
+            // -----------------------------
+            if ($request->branch_image) {
+
+                // Delete old image
+                $this->deleteImageIfExists($shop->branch_image);
+
+                // Save new image
+                $imagePath = $this->saveLogo($request->branch_image, 'branch');
+                $shop->branch_image = $imagePath;
+                $shop->save();
+            }
+
+            $client = Pharmacy::find($shop->pharmacy_id);
+
+
+            // -----------------------------
+            // UPDATE SHOP (Branch)
+            // -----------------------------
+            $shop->branch_name = $request->branch_name ?? $shop->branch_name;
+            $shop->branch_city = $request->branch_city ?? $shop->branch_city;
+            $shop->branch_area = $request->branch_area ?? $shop->branch_area;
+            $shop->branch_full_address = $request->branch_full_address ?? $shop->branch_full_address;
+            $shop->branch_mobile = $request->branch_mobile ?? $shop->branch_mobile;
+            $shop->branch_contact_person_name = $request->branch_contact_person_name ?? $shop->branch_contact_person_name;
+            $shop->branch_contact_person_mobile = $request->branch_contact_person_mobile ?? $shop->branch_contact_person_mobile;
+            $shop->save();
+
+            // -----------------------------
+            // UPDATE PHARMACY OWNER INFO
+            // -----------------------------
+            if ($client) {
+                $client->pharmacy_shop_name = $request->client_name ?? $client->pharmacy_shop_name;
+                $client->pharmacy_shop_owner_name = $request->owner_name ?? $client->pharmacy_shop_owner_name;
+                $client->pharmacy_shop_licence_no = $request->licence_no ?? $client->pharmacy_shop_licence_no;
+                $client->pharmacy_shop_branch_owner_nid = $request->owner_nid ?? $client->pharmacy_shop_branch_owner_nid;
+                $client->save();
+            }
+
+            // -----------------------------
+            // UPDATE USER
+            // -----------------------------
+            $user = User::where('pharmacy_branch_id', $shop->id)->first();
+
+            if ($user) {
+                $user->name = $request->client_name ?? $user->name;
+                $user->user_mobile = $request->branch_mobile ?? $user->user_mobile;
+                $user->email = $request->email ?? $user->email;
+
+                if ($request->password) {
+                    $user->password = app('hash')->make($request->password);
+                }
+
+                $user->save();
+            }
 
             return response()->json([
                 'status' => true,
-                'message' => "Client added successfully!",
-                'data' => $client
-            ], 201);
+                'message' => 'Shop updated successfully!',
+                'data' => $shop
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'data'   => 'Something went wrong!',
+                'status' => false,
+                'error'  => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function saveLogo($base64, $folder = 'logo')
+    {
+        if (!$base64) return null;
+
+        // Remove data:image prefix
+        if (str_starts_with($base64, 'data:image')) {
+            [$meta, $base64] = explode(',', $base64);
         }
 
-        return response()->json([
-            'status' => false,
-            'message' => "Duplicate shop code"
-        ], 409); // 409 Conflict is better than 302
+        $binaryData = base64_decode($base64);
+
+        // Detect extension
+        $extension = 'png';
+        if (isset($meta)) {
+            if (str_contains($meta, 'jpeg')) $extension = 'jpg';
+            if (str_contains($meta, 'svg')) $extension = 'svg';
+        }
+
+        // Unique name
+        $fileName = uniqid() . '.' . $extension;
+
+        // Public-facing path (saved in DB)
+        $relativePath = "public/$folder";
+
+        // Server filesystem path (where we save)
+        $fullPath = base_path($relativePath);
+
+        // Create folder if missing
+        if (!file_exists($fullPath)) {
+            mkdir($fullPath, 0777, true);
+        }
+
+        // Save file
+        file_put_contents("$fullPath/$fileName", $binaryData);
+
+        // Return path to store in DB
+        return "$relativePath/$fileName";
     }
 
     public function clear(Request $request)

@@ -236,12 +236,13 @@ class MedicineController extends Controller
 
         $shop_id = $user->pharmacy_branch_id;
         $str = $request->input('search', '');
+        $str = $str ? '%' . $str . '%' : '';
 
         $medicines = Medicine::join('products', 'products.medicine_id', '=', 'medicines.id')
             ->where('products.pharmacy_branch_id', $shop_id)
             ->where(function ($q) use ($str) {
-                $q->where('brand_name', 'like', $str . '%')
-                ->orWhere('barcode', 'like', $str . '%');
+                $q->where('brand_name', 'like', $str)
+                ->orWhere('barcode', 'like', $str);
             })
             ->orderBy('brand_name', 'asc')
             ->select('medicines.*')

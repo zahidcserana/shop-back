@@ -95,6 +95,7 @@ $router->group(
                 $router->post('carts/price-update', ['uses' => 'CartController@priceUpdate']);
 
                 /** Report Sale */
+                $router->post('customer-by-code', ['uses' => 'SaleController@getCustomerByCode']);
                 $router->get('sale/report', ['uses' => 'SaleController@saleReport']);
                 $router->get('sale/return/report', ['uses' => 'SaleController@saleReturnReport']);
                 $router->get('sale/due/report', ['uses' => 'SaleController@saleDueReport']);

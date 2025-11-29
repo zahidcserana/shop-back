@@ -284,6 +284,7 @@ class Sale extends Model
         $data['branch_city'] = $pharmacyBranch->branch_city;
         $data['branch_name'] = $pharmacyBranch->branch_name;
         $data['branch_mobile'] = $pharmacyBranch->branch_mobile;
+        $data['branch_contact_person_mobile'] = $pharmacyBranch->branch_contact_person_mobile;
 
         $items = array();
         $totalProfit = 0;

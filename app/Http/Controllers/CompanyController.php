@@ -58,21 +58,29 @@ class CompanyController extends Controller
 
     public function store(Request $request)
     {
-        $user = $request->auth;
-        $client_id = $user->pharmacy_id;
-        $shop_id = $user->pharmacy_branch_id;
+        try {
+            $user = $request->auth;
+            $client_id = $user->pharmacy_id;
+            $shop_id = $user->pharmacy_branch_id;
 
-        $addMedicineCompany = new MedicineCompany();
-        $addMedicineCompany->company_name = $request->name;
-        $addMedicineCompany->company_address = $request->address;
-        $addMedicineCompany->company_contact_person = $request->contact_person;
-        $addMedicineCompany->company_contact_person_mobile = $request->mobile;
-        $addMedicineCompany->company_contact_person_email = $request->email;
-        $addMedicineCompany->pharmacy_id = $client_id;
-        $addMedicineCompany->pharmacy_branch_id = $shop_id;
-        $addMedicineCompany->save();
+            $addMedicineCompany = new MedicineCompany();
+            $addMedicineCompany->company_name = $request->name;
+            $addMedicineCompany->company_address = $request->address;
+            $addMedicineCompany->company_contact_person = $request->contact_person;
+            $addMedicineCompany->company_contact_person_mobile = $request->mobile;
+            $addMedicineCompany->company_contact_person_email = $request->email;
+            $addMedicineCompany->pharmacy_id = $client_id;
+            $addMedicineCompany->pharmacy_branch_id = $shop_id;
+            $addMedicineCompany->save();
 
-        return response()->json(['success' => true, 'message' => "Supplier saved successfully!"]);
+            return response()->json(['success' => true, 'message' => "Supplier saved successfully!"]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong!',
+                'error'   => $th->getMessage(),
+            ], 500);
+        }
     }
 
     public function update(Request $request, $id)

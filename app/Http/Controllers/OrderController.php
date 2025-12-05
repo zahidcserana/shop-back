@@ -1131,6 +1131,7 @@ class OrderController extends Controller
     {
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.payment_type', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
+            ->where('orders.pharmacy_branch_id', $request->auth->pharmacy_branch_id)    
             ->where('orders.status', 'ACCEPTED')
             ->where('orders.payment_type', 'DUE')
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
@@ -1188,16 +1189,18 @@ class OrderController extends Controller
         $product = $details['product'];
         $status = $details['status'];
 
-        $company_details = MedicineCompany::where('company_name', $company)->get();
+        $company_details = MedicineCompany::where('company_name', $company)->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)->first();
+
         $company_id = 0;
         $company_orders = [];
-        if (sizeof($company_details)) {
-            $company_id = $company_details[0]->id;
+        if ($company_details) {
+            $company_id = $company_details->id;
             $company_orders = OrderItem::distinct('order_id')->pluck('order_id');
         }
 
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.payment_type', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
+            ->where('orders.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
             ->where('orders.status', 'ACCEPTED')
             ->where('orders.payment_type', 'DUE')
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
@@ -1263,7 +1266,6 @@ class OrderController extends Controller
     public function purchaseListFilter(Request $request)
     {
         $details = $request->details;
-
         $invoice = $details['invoice'] ? $details['invoice'] : 0;
         $start_date = $details['start_date'];
         $end_date = $details['end_date'];

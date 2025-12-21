@@ -167,6 +167,12 @@ $router->group(
 
                 $router->get('purchase/details/{orderId}', ['uses' => 'OrderController@purchaseDetails']);
 
+                // damages
+                $router->get('damages/details/{damageId}', ['uses' => 'DamageController@view']);
+                $router->get('damages/list', ['uses' => 'DamageController@damageList']);
+                $router->post('damages/store', ['uses' => 'DamageController@store']);
+                $router->post('damages/product_details', ['uses' => 'DamageController@getProductDetails']);
+                $router->post('damages/delete', ['uses' => 'DamageController@delete']);
 
                 /** Sales List for report */
                 $router->get('sales-report', ['uses' => 'OrderController@salesReport']);

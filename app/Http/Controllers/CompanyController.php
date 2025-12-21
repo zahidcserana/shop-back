@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Models\MedicineCompany;
 use Illuminate\Http\Request;
 use DB;
@@ -20,8 +21,7 @@ class CompanyController extends Controller
     public function getCompaniesByInventory(Request $request)
     {
         $user = $request->auth;
-        $companyIds = DB::table('products')
-            ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
+        $companyIds = Product::where('pharmacy_branch_id', $user->pharmacy_branch_id)
             ->select('company_id')->distinct()
             ->pluck('company_id');
 

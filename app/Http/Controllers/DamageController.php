@@ -207,7 +207,7 @@ class DamageController extends Controller
                 'created_at as damage_date',
                 'total_amount',
                 'status'
-            )->where('id', $damageId)->get();
+            )->where('id', $damageId)->first();
 
             $orderItems = DamageItem::select(
                 'damage_items.id as item_id',

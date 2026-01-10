@@ -4,3 +4,4 @@ Homestead.json
 Homestead.yaml
 .env
 /assets/prescription_image/*
+/public/branch/*

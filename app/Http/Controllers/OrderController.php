@@ -600,130 +600,74 @@ class OrderController extends Controller
         $details = $request->details;
         $user    = $request->auth;
 
-        $orderId = $details['order_id'];
-        $update_item_id = $details['item_id'];
-        $update_new_qty = $details['new_quantity'];
-        $previous_quantity = $details['previous_quantity'];
+        $orderId          = $details['order_id'];
+        $update_item_id   = $details['item_id'];
+        $newQty           = $details['new_quantity'];
 
-        $UpdateItemInfo = OrderItem::find($update_item_id);
-        $piece_per_box = $UpdateItemInfo->pieces_per_box;
-        $trade_price = $UpdateItemInfo->trade_price;
-        $box_vat = $UpdateItemInfo->box_vat ? $UpdateItemInfo->box_vat : 0;
-        $update_medicine_id = $UpdateItemInfo->medicine_id;
+        return DB::transaction(function () use (
+            $orderId, $update_item_id, $newQty, $user
+        ) {
 
-        $previous_total_qty = $piece_per_box * $previous_quantity;
-        $new_total_qty = $piece_per_box * $update_new_qty;
+            // ========== 1. Load Item ==========
+            $item = OrderItem::findOrFail($update_item_id);
+            $previousQty      = $item->quantity;
 
-        if ($previous_total_qty > $new_total_qty) {
-            $updated_product_quantity = $previous_total_qty - $new_total_qty;
+            $piece_per_box = $item->pieces_per_box;
+            $trade_price   = $item->trade_price;
+            $box_vat       = $item->box_vat ?? 0;
+            $medicine_id   = $item->medicine_id;
 
-            $total_price = ($trade_price + $box_vat) * $update_new_qty;
-            $grandTotalPrice = $total_price;
+            // Total qty in pieces
+            $prevTotalQty = $previousQty * $piece_per_box;
+            $newTotalQty  = $newQty * $piece_per_box;
 
-            $UpdateItemInfo->is_modified = 1;
-            $UpdateItemInfo->quantity = $update_new_qty;
-            $UpdateItemInfo->modified_qty = $previous_quantity - $update_new_qty;
-            $UpdateItemInfo->sub_total = $total_price;
-            $UpdateItemInfo->total = $total_price;
-            $UpdateItemInfo->status = "RETURNED";
-            $UpdateItemInfo->save();
+            // Determine change amount (+ or -)
+            $qtyDifference = $newTotalQty - $prevTotalQty;
 
-            $existing_items = OrderItem::where('order_id', $orderId)->where('id', '!=', $update_item_id)->get();
+            // ========== 2. Update Order Item Info ==========
+            $total_price = ($trade_price + $box_vat) * $newQty;
 
-            if (sizeof($existing_items)) {
-                foreach ($existing_items as $item) :
-                    $grandTotalPrice = $grandTotalPrice + $item->total;
-                endforeach;
-            }
+            $item->is_modified  = 1;
+            $item->quantity     = $newQty;
+            $item->modified_qty = abs($newQty - $previousQty);   // FIXED!
+            $item->sub_total    = $total_price;
+            $item->total        = $total_price;
 
-            $UpdateOrderInfo = Order::find($orderId);
-            //$tax_type = $UpdateOrderInfo->tax_type;
-            //$tax = $UpdateOrderInfo->tax;
-            $discount = $UpdateOrderInfo->discount;
+            // If reduced qty → returned
+            $item->status = ($newQty < $previousQty) ? "RETURNED" : OrderItem::STATUS_OK;
 
+            $item->save();
+
+            // ========== 3. Recalculate Order Total ==========
+            $grandTotalPrice = OrderItem::where('order_id', $orderId)->sum('total');
+
+            $order = Order::findOrFail($orderId);
+
+            $discount = $order->discount;
             $sub_total = $grandTotalPrice - $discount;
 
-            // if($tax_type == "percentage"){
-            //     $total_vat = ($grandTotalPrice * $tax) / 100;
-            //     $sub_total = $grandTotalPrice + $total_vat + $discount;
-            // }else{
-            //     $sub_total = $grandTotalPrice + $tax + $discount;
-            // }
+            $due = $sub_total - $order->total_advance_amount;
 
-            $total_advance_amount = $UpdateOrderInfo->total_advance_amount;
+            $order->total_due_amount     = $due;
+            $order->sub_total            = $sub_total;
+            $order->total_amount         = $grandTotalPrice;
+            $order->total_payble_amount  = $sub_total;
+            $order->save();
 
-            $due = $sub_total - $total_advance_amount;
+            // ========== 4. Update Product Stock ==========
+            $product = Product::where('medicine_id', $medicine_id)
+                ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
+                ->first();
 
-            $UpdateOrderInfo->total_due_amount = $due;
-            $UpdateOrderInfo->sub_total = $sub_total;
-            $UpdateOrderInfo->total_amount = $grandTotalPrice;
-            $UpdateOrderInfo->total_payble_amount = $sub_total;
-            $UpdateOrderInfo->save();
-
-            $UpdateProductInfo = Product::where('medicine_id', $update_medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
-
-            if (!empty($UpdateProductInfo)) {
-                $UpdateProductInfo->quantity = $UpdateProductInfo->quantity - $updated_product_quantity;
-                $UpdateProductInfo->update();
-            }
-        } else {
-
-            $updated_product_quantity = $new_total_qty - $previous_total_qty;
-
-            $total_price = ($trade_price + $box_vat) * $update_new_qty;
-            $grandTotalPrice = $total_price;
-
-            $UpdateItemInfo->is_modified = 1;
-            $UpdateItemInfo->quantity = $update_new_qty;
-            $UpdateItemInfo->modified_qty = $previous_quantity + $update_new_qty;
-            $UpdateItemInfo->sub_total = $total_price;
-            $UpdateItemInfo->total = $total_price;
-            $UpdateItemInfo->status = "RETURNED";
-            $UpdateItemInfo->save();
-
-            $existing_items = OrderItem::where('order_id', $orderId)->where('id', '!=', $update_item_id)->get();
-
-            if (sizeof($existing_items)) {
-                foreach ($existing_items as $item) :
-                    $grandTotalPrice = $grandTotalPrice + $item->total;
-                endforeach;
+            if ($product) {
+                $product->quantity += $qtyDifference;
+                $product->save();
             }
 
-            $UpdateOrderInfo = Order::find($orderId);
-            // $tax_type = $UpdateOrderInfo->tax_type;
-            // $tax = $UpdateOrderInfo->tax;
-            $discount = $UpdateOrderInfo->discount;
-
-            $sub_total = $grandTotalPrice - $discount;
-
-            // if($tax_type == "percentage"){
-            //     $total_vat = ($grandTotalPrice * $tax) / 100;
-            //     $sub_total = $grandTotalPrice + $total_vat + $discount;
-            // }else{
-            //     $sub_total = $grandTotalPrice + $tax + $discount;
-            // }
-
-            $total_advance_amount = $UpdateOrderInfo->total_advance_amount;
-
-            $due = $sub_total - $total_advance_amount;
-
-            $UpdateOrderInfo->total_due_amount = $due;
-
-            $UpdateOrderInfo->sub_total = $sub_total;
-            $UpdateOrderInfo->total_amount = $grandTotalPrice;
-            $UpdateOrderInfo->total_payble_amount = $sub_total;
-            $UpdateOrderInfo->save();
-
-            $UpdateProductInfo = Product::where('medicine_id', $update_medicine_id)->where('pharmacy_branch_id', $user->pharmacy_branch_id)->first();
-            if (!empty($UpdateProductInfo)) {
-                $UpdateProductInfo->quantity = $UpdateProductInfo->quantity + $updated_product_quantity;
-                $UpdateProductInfo->save();
-            }
-        }
-
-        return response()->json(array(
-            'message' => "Purchase item updated Successfull!",
-        ));
+            return response()->json([
+                'message' => "Purchase item updated successfully!",
+            ]);
+        });
     }
 
     public function purchaseDetailsDelete(Request $request)
@@ -1187,6 +1131,7 @@ class OrderController extends Controller
     {
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.payment_type', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
+            ->where('orders.pharmacy_branch_id', $request->auth->pharmacy_branch_id)    
             ->where('orders.status', 'ACCEPTED')
             ->where('orders.payment_type', 'DUE')
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
@@ -1244,16 +1189,18 @@ class OrderController extends Controller
         $product = $details['product'];
         $status = $details['status'];
 
-        $company_details = MedicineCompany::where('company_name', $company)->get();
+        $company_details = MedicineCompany::where('company_name', $company)->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)->first();
+
         $company_id = 0;
         $company_orders = [];
-        if (sizeof($company_details)) {
-            $company_id = $company_details[0]->id;
+        if ($company_details) {
+            $company_id = $company_details->id;
             $company_orders = OrderItem::distinct('order_id')->pluck('order_id');
         }
 
         $data = [];
         $orders = Order::select('orders.id', 'orders.invoice', 'orders.purchase_date', 'orders.status', 'orders.payment_type', 'orders.discount', 'orders.total_amount', 'orders.total_payble_amount', 'orders.total_advance_amount', 'orders.total_due_amount', 'medicine_companies.company_name', 'users.name as created_by')
+            ->where('orders.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
             ->where('orders.status', 'ACCEPTED')
             ->where('orders.payment_type', 'DUE')
             ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'orders.company_id')
@@ -1319,7 +1266,6 @@ class OrderController extends Controller
     public function purchaseListFilter(Request $request)
     {
         $details = $request->details;
-
         $invoice = $details['invoice'] ? $details['invoice'] : 0;
         $start_date = $details['start_date'];
         $end_date = $details['end_date'];
@@ -2168,23 +2114,36 @@ class OrderController extends Controller
         ));
     }
 
-    public function updateMRPTP(Request $request)
+   public function updateMRPTP(Request $request)
     {
-        $id = $request->id;
+        $id  = $request->id;
         $mrp = $request->mrp;
-        $tp = $request->tp;
+        $tp  = $request->tp;
 
         $UpdateProduct = Product::find($id);
+
+        // Update MRP and TP
         $UpdateProduct->mrp = $mrp;
-        $UpdateProduct->tp = $tp;
+        $UpdateProduct->tp  = $tp;
+
+        // Calculate profit percentage (MRP vs TP)
+        if ($tp > 0) {
+            $percentage = (($mrp - $tp) / $tp) * 100;
+        } else {
+            $percentage = 0; // avoid division by zero
+        }
+
+        $UpdateProduct->percentage = $percentage;
+
         $UpdateProduct->save();
 
-        return response()->json(array(
+        return response()->json([
             'data' => $UpdateProduct,
             'status' => 'Successful',
             'message' => 'Update List'
-        ));
+        ]);
     }
+
 
     public function inventoryFilter(Request $request)
     {

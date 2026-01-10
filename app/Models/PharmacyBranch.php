@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PharmacyBranch extends Model
 {
-
     use SoftDeletes;
 
     protected $guarded = [];

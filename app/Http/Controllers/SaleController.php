@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use App\Models\Cart;
 use App\Models\Sale;
 use App\Models\Product;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\CartItem;
 use App\Models\Medicine;
@@ -196,16 +197,56 @@ class SaleController extends Controller
 
   public function create(Request $request)
   {
-    $data = $request->all();
+    try {
+      $data = $request->all();
 
-    $this->validate($request, [
-      'token' => 'required',
-    ]);
-    
-    $orderModel = new Sale();
-    $order = $orderModel->makeOrder($data);
+      $this->validate($request, [
+        'token' => 'required',
+      ]);
+      
+      $orderModel = new Sale();
+      $response = $orderModel->makeOrder($data);
+      $order = $response['data'];
 
-    return response()->json($order);
+      if ($response['success'] && !empty($order['customer_mobile'])) {
+        $customer = Customer::where('code', $order['customer_mobile'])->orWhere('mobile', $order['customer_mobile'])->first();
+
+        if ($customer) {
+          $customer->balance += $order['total_payble_amount'];
+          $customer->save();
+        } else {
+          Customer::create([
+            'code' => $order['customer_mobile'],
+            'mobile' => $order['customer_mobile'],
+            'name' => $order['customer_name'],
+            'balance' => $order['total_payble_amount']
+          ]);
+        }
+      }
+
+      return response()->json($response);
+    } catch (\Throwable $th) {
+      return response()->json([
+          'success' => false,
+          'message' => 'Sale failed.',
+          'error'   => $th->getMessage(),
+      ], 500);
+    }
+  }
+
+  public function getCustomerByCode(Request $request)
+  {
+      $code = $request->input('customer_code');
+
+      if (!$code) {
+          return response()->json(null);
+      }
+
+      $customer = Customer::where('code', $code)
+          ->orWhere('mobile', $code)
+          ->first();
+
+      return response()->json($customer);
   }
 
   private function _sendMessage($data)

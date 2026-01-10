@@ -11,33 +11,41 @@ class SettingsController extends Controller
 {
     public function typeSave(Request $request)
     {
-        $user = $request->auth;
-        $client_id = $user->pharmacy_id;
-        $shop_id = $user->pharmacy_branch_id;
+        try {
+            $user = $request->auth;
+            $client_id = $user->pharmacy_id;
+            $shop_id = $user->pharmacy_branch_id;
 
-        if ($request->type_id) {
-            $UpdateMedicineType = MedicineType::find($request->type_id);;
-            $UpdateMedicineType->name = $request->type;
-            $UpdateMedicineType->save();
+            if ($request->type_id) {
+                $UpdateMedicineType = MedicineType::find($request->type_id);;
+                $UpdateMedicineType->name = $request->type;
+                $UpdateMedicineType->save();
 
-            return response()->json(['status' => true, 'message' => "Product Type Updated Successfully!"], 201);
-        } else {
-            $exist = MedicineType::where('name', 'like', $request->type)->first();
+                return response()->json(['status' => true, 'message' => "Product Type Updated Successfully!"], 201);
+            } else {
+                $exist = MedicineType::where('name', 'like', $request->type)->where('pharmacy_branch_id', $shop_id)->first();
 
-            if (!$exist) {
-                $medicineType = new MedicineType();
-                $medicineType->name = $request->type;
-                $medicineType->pharmacy_id = $client_id;
-                $medicineType->pharmacy_branch_id = $shop_id;
-                $medicineType->save();
+                if (!$exist) {
+                    $medicineType = new MedicineType();
+                    $medicineType->name = $request->type;
+                    $medicineType->pharmacy_id = $client_id;
+                    $medicineType->pharmacy_branch_id = $shop_id;
+                    $medicineType->save();
 
-                return response()->json(['status' => true, 'message' => "Product Type Added Successfully!"], 201);
+                    return response()->json(['status' => true, 'message' => "Product Type Added Successfully!"], 201);
+                }
+
+                return response()->json(['status' => false, 'message' => "Already exists!"]);
             }
 
-            return response()->json(['status' => false, 'message' => "Already exists!"]);
+            return response()->json(['status' => false, 'message' => "Please Check All the details!"], 302);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong!',
+                'error'   => $th->getMessage(),
+            ], 500);
         }
-
-        return response()->json(['status' => false, 'message' => "Please Check All the details!"], 302);
     }
 
     public function types(Request $request)
@@ -79,7 +87,9 @@ class SettingsController extends Controller
 
             return response()->json(['status' => true, 'message' => "Product Brand Updated Successfully!"], 201);
         } else {
-            $exist = Brand::where('name', 'like', $request->name)->first();
+            $exist = Brand::where('name', $request->name)
+                ->where('pharmacy_branch_id', $shop_id)
+                ->first();
 
             if (!$exist) {
                 $brand = new Brand();

@@ -260,7 +260,8 @@ class Sale extends Model
         $data['tax'] = $order->tax;
         $data['discount'] = $order->discount;
         $data['invoice'] = $order->invoice;
-        $data['created_at'] = date("F j, Y h:i:s A", strtotime($order->created_at));
+        $data['created_at'] = date("d/m/Y", strtotime($order->created_at));
+        // $data['created_at'] = date("F j, Y h:i:s A", strtotime($order->created_at));
         $data['remarks'] = $order->remarks;
         $data['customer_name'] = $order->customer_name;
         $data['customer_mobile'] = $order->customer_mobile;
@@ -283,6 +284,7 @@ class Sale extends Model
         $data['branch_city'] = $pharmacyBranch->branch_city;
         $data['branch_name'] = $pharmacyBranch->branch_name;
         $data['branch_mobile'] = $pharmacyBranch->branch_mobile;
+        $data['branch_contact_person_mobile'] = $pharmacyBranch->branch_contact_person_mobile;
 
         $items = array();
         $totalProfit = 0;

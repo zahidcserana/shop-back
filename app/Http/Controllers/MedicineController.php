@@ -236,12 +236,13 @@ class MedicineController extends Controller
 
         $shop_id = $user->pharmacy_branch_id;
         $str = $request->input('search', '');
+        $str = $str ? '%' . $str . '%' : '';
 
         $medicines = Medicine::join('products', 'products.medicine_id', '=', 'medicines.id')
             ->where('products.pharmacy_branch_id', $shop_id)
             ->where(function ($q) use ($str) {
-                $q->where('brand_name', 'like', $str . '%')
-                ->orWhere('barcode', 'like', $str . '%');
+                $q->where('brand_name', 'like', $str)
+                ->orWhere('barcode', 'like', $str);
             })
             ->orderBy('brand_name', 'asc')
             ->select('medicines.*')
@@ -258,29 +259,42 @@ class MedicineController extends Controller
         return response()->json($data);
     }
 
-
     public function searchMedicineFromInventory(Request $request)
     {
-        $str = $request->input('search');
+        try {
+            $str = $request->input('search');
 
-        $companyData = $request->input('company') ? MedicineCompany::where('company_name', 'like', $request->input('company'))->first() : 0;
-        $company_id =  $companyData ? $companyData->id : 0;
-        $pharmacyMedicineIds = DB::table('products')->select('medicine_id')->distinct()->pluck('medicine_id');
+            $medicines = Medicine::where(function ($q) use ($str) {
+                    $q->where('brand_name', 'like', '%' . $str . '%')
+                    ->orWhere('barcode', 'like', '%' . $str . '%');
+                })
+                ->whereHas('products', function ($query) use ($request) {
+                    $query->where(function ($sub) use ($request) {
+                        $sub->where('products.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+                            ->orWhere('products.pharmacy_id', $request->auth->pharmacy_id);
+                    });
+                })
+                ->orderBy('brand_name', 'asc')
+                ->get();
 
-        $medicines = Medicine::where('brand_name', 'like', $str . '%')
-            ->when($company_id, function ($query, $company_id) {
-                return $query->where('company_id', $company_id);
-            })
-            ->when($pharmacyMedicineIds, function ($query, $pharmacyMedicineIds) {
-                return $query->whereIn('id', $pharmacyMedicineIds);
-            })
-            ->get();
-        $data = array();
-        foreach ($medicines as $medicine) {
-            $medicineStr = $medicine->brand_name . ' (' . $medicine->strength . ',' . $medicine->medicineType->name . ')';
-            $data[] = ['id' => $medicine->id, 'name' => $medicineStr];
+            $data = $medicines->map(function ($medicine) {
+                return [
+                    'id'    => $medicine->id,
+                    'name'  => $medicine->brand_name,
+                ];
+            });
+
+            return response()->json($data);
+
+        } catch (\Throwable $e) {
+            \Log::error('Medicine search failed: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Search failed.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-        return response()->json($data);
     }
 
     public function batchList(Request $request)

@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Hash;
 
 $router->get('/', function () use ($router) {
     // $aa = base64_encode("6DAA0C0782E44BA5A4C3AD8A37724FA6:AcZnJGHA9yeqVF8N4JwRIZVnp_0jfREOLBWcQDLPnhW_zTfX");
-    // dd(Hash::make('pFashion'));
+    // dd(Hash::make('secret'));
 
     return $router->app->version();
 });
@@ -13,6 +13,10 @@ $router->group(
     ['prefix' => 'api'],
     function () use ($router) {
         $router->get('/', function () use ($router) {
+            return $router->app->version();
+        });
+        $router->get('/hi', function () use ($router) {
+            dd('hi');
             return $router->app->version();
         });
 
@@ -91,6 +95,7 @@ $router->group(
                 $router->post('carts/price-update', ['uses' => 'CartController@priceUpdate']);
 
                 /** Report Sale */
+                $router->post('customer-by-code', ['uses' => 'SaleController@getCustomerByCode']);
                 $router->get('sale/report', ['uses' => 'SaleController@saleReport']);
                 $router->get('sale/return/report', ['uses' => 'SaleController@saleReturnReport']);
                 $router->get('sale/due/report', ['uses' => 'SaleController@saleDueReport']);
@@ -162,6 +167,12 @@ $router->group(
 
                 $router->get('purchase/details/{orderId}', ['uses' => 'OrderController@purchaseDetails']);
 
+                // damages
+                $router->get('damages/details/{damageId}', ['uses' => 'DamageController@view']);
+                $router->get('damages/list', ['uses' => 'DamageController@damageList']);
+                $router->post('damages/store', ['uses' => 'DamageController@store']);
+                $router->post('damages/product_details', ['uses' => 'DamageController@getProductDetails']);
+                $router->post('damages/delete', ['uses' => 'DamageController@delete']);
 
                 /** Sales List for report */
                 $router->get('sales-report', ['uses' => 'OrderController@salesReport']);
@@ -238,8 +249,10 @@ $router->group(
                     ['middleware' => 'jwt.auth'],
                     function () use ($router) {
                         // $router->post('clear', ['uses' => 'AdminController@reset']);
+                        // $router->post('clean-db/{clientId}', ['uses' => 'AdminController@cleanDatabase']);
                         $router->get('shops', ['uses' => 'AdminController@shops']);
                         $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
+                        $router->post('shops/update/{branchId}', ['uses' => 'AdminController@updateShop']);
                         $router->get('branches', ['uses' => 'AdminController@branches']);
                     }
                 );

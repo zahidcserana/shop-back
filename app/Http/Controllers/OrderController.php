@@ -508,15 +508,20 @@ class OrderController extends Controller
         $itemDetails = Medicine::join('products', 'products.medicine_id', '=', 'medicines.id')
             ->where('products.pharmacy_branch_id', $shop_id)
             ->where('medicines.id', $request->medicine_id)
+            ->when($request->filled('batch_no'), function ($query) use ($request) {
+                $query->where('products.batch_no', $request->batch_no);
+            })
             ->select(
                 'medicines.id',
                 'medicines.brand_name',
                 'medicines.pcs_per_box as pieces_per_box',
-                'medicines.tp_per_box as trade_price',
                 'medicines.vat_per_box as box_vat',
-                'medicines.mrp_per_box as mrp',
                 'medicines.barcode',
+                'products.tp as trade_price',
+                'products.mrp',
+                'products.quantity as stock_quantity',
                 'products.low_stock_qty',
+                'products.batch_no',
                 'products.percentage'
             )
             ->first();
@@ -822,6 +827,7 @@ class OrderController extends Controller
                     $item['piece_per_box'] = max(1, (int)($item['piece_per_box'] ?? 1));
                     $item['quantity']      = max(0, (int)($item['quantity'] ?? 0));
                     $item['free_qty']      = max(0, (int)($item['free_qty'] ?? 0));
+                    $item['batch_no']      = empty($item['batch_no']) ? Medicine::$DEFAULT_BATCH: $item['batch_no'];
 
                     $medicine = Medicine::find($item['medicine_id']);
                     if (!$medicine) {
@@ -840,7 +846,7 @@ class OrderController extends Controller
                     $orderItem->quantity       = $item['quantity'];
                     $orderItem->free_qty       = $item['free_qty'];
                     $orderItem->exp_date       = $exp_date;
-                    $orderItem->batch_no       = $item['batch_no'] ?? '';
+                    $orderItem->batch_no       = $item['batch_no'];
                     $orderItem->unit_price     = $item['box_mrp'] ?? 0;
                     $orderItem->sub_total      = $item['amount'] ?? 0;
                     $orderItem->mrp            = $item['box_mrp'] ?? 0;
@@ -867,6 +873,7 @@ class OrderController extends Controller
 
                     $product = Product::firstOrNew([
                         'medicine_id'        => $item['medicine_id'],
+                        'batch_no'           => $item['batch_no'],
                         'pharmacy_id'        => $user->pharmacy_id,
                         'pharmacy_branch_id' => $user->pharmacy_branch_id,
                     ]);
@@ -983,7 +990,7 @@ class OrderController extends Controller
                 $box_vat = $item->box_vat;
                 $tp_with_vat = $trade_price + $box_vat;
 
-                $item_name = $item->brand_name . ' ' . $item->brand;
+                $item_name = $item->brand_name;
 
                 $itemList[] = array('medicine' => $item_name, 'medicine_type' => $item->medicine_type, 'brand' => $item->brand, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no);
             endforeach;
@@ -1093,11 +1100,12 @@ class OrderController extends Controller
             $order_id = $order->id;
             $itemList = [];
 
-            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'medicine_companies.company_name', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
+            $orderItems = OrderItem::select('medicines.brand_name', 'medicines.strength', 'medicine_types.name as medicine_type', 'medicine_companies.company_name', 'brands.name as brand', 'order_items.pieces_per_box', 'order_items.trade_price', 'order_items.unit_price', 'order_items.box_vat', 'order_items.mrp', 'order_items.quantity', 'order_items.batch_no', 'order_items.exp_date')
                 ->where('order_items.order_id', $order_id)
                 ->leftjoin('medicines', 'medicines.id', '=', 'order_items.medicine_id')
                 ->leftjoin('medicine_types', 'medicine_types.id', '=', 'medicines.medicine_type_id')
                 ->leftjoin('medicine_companies', 'medicine_companies.id', '=', 'order_items.company_id')
+                ->leftjoin('brands', 'medicines.brand_id', '=', 'brands.id')
                 ->get();
 
             foreach ($orderItems as $item) :
@@ -1105,9 +1113,9 @@ class OrderController extends Controller
                 $box_vat = $item->box_vat;
                 $tp_with_vat = $trade_price + $box_vat;
 
-                $item_name = $item->brand_name . ' ' . $item->strength;
+                $item_name = $item->brand_name;
 
-                $itemList[] = array('medicine' => $item_name, 'company_name' => $item->company_name, 'medicine_type' => $item->medicine_type, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
+                $itemList[] = array('medicine' => $item_name, 'brand' => $item->brand, 'company_name' => $item->company_name, 'medicine_type' => $item->medicine_type, 'unit_price_with_vat' => $item->unit_price, 'tp_with_vat' => $tp_with_vat, 'quantity' => $item->quantity, 'batch_no' => $item->batch_no, 'exp_date' => $item->exp_date);
             endforeach;
 
             $total_amount = $total_amount + $order->total_amount;
@@ -2026,6 +2034,7 @@ class OrderController extends Controller
             ->select([
                 'products.id',
                 'products.quantity',
+                'products.batch_no',
                 'products.mrp',
                 'products.tp',
                 'products.medicine_id',
@@ -2199,7 +2208,7 @@ class OrderController extends Controller
         $generic =  $decode_filter['generic'] ?? 0;
         $low_stock_qty = $decode_filter['low_stock_qty'];
 
-        $inventory = Product::select('products.id', 'products.quantity', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
+        $inventory = Product::select('products.id', 'products.quantity', 'products.batch_no', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
             // ->when($company, function ($query, $company) {

@@ -10,6 +10,7 @@ class Medicine extends Model
   use SoftDeletes;
 
   protected $guarded = [];
+  public static $DEFAULT_BATCH = 'BAT-321';
 
   public function medicineType()
   {

@@ -746,6 +746,7 @@ class SaleController extends Controller
         'sale_items.id as item_id',
         'sale_items.medicine_id',
         'sale_items.quantity',
+        'sale_items.batch_no',
         'sale_items.sub_total',
         'sale_items.unit_price as mrp',
         'sale_items.tp',
@@ -801,6 +802,7 @@ class SaleController extends Controller
         $aData = array();
         $aData['medicine'] = ['id' => $aItem->medicine_id, 'brand' => $aItem->brand, 'name' => $aItem->brand_name, 'type' => substr($aItem->medicine_type, 0, 3)];
         $aData['quantity'] = $aItem->quantity;
+        $aData['batch_no'] = $aItem->batch_no;
         $aData['mrp'] = $aItem->mrp;
         $aData['tp'] = $aItem->tp;
         $aData['sub_tp'] = $sub_tp;

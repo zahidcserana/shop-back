@@ -116,6 +116,7 @@ class Cart extends Model
             $aData['free_quantity'] = $cartItem->free_quantity;
             $aData['unit_type'] = $cartItem->unit_type;
             $aData['batch_no'] = $cartItem->batch_no;
+            $aData['serial_no'] = $cartItem->serial_no;
             // $aData['dar_no'] = $cartItem->dar_no;
             $aData['unit_price'] = $cartItem->unit_price;
             $product = DB::table('products')->where('medicine_id', $cartItem->medicine_id)->first();

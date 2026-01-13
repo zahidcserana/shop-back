@@ -13,6 +13,10 @@ class CartItem extends Model
     use SoftDeletes;
     protected $guarded = [];
 
+    protected $casts = [
+        'serial_no' => 'array',
+    ];
+
     public function addItem($data)
     {
         $medicine = new Medicine();
@@ -35,6 +39,7 @@ class CartItem extends Model
             'quantity' => $data['quantity'],
             'free_quantity' => $data['free_quantity'] ?? 0,
             'batch_no' => empty($data['batch_no']) ? Medicine::$DEFAULT_BATCH: $data['batch_no'],
+            'serial_no' => isset($data['serial_no']) ? json_encode($data['serial_no']): null,
             // 'batch_no' => $medicineInfo ? $medicineInfo->batch_no : null,
             // 'exp_date' => $medicineInfo? $medicineInfo->exp_date : null,
             'cart_id' => $data['cart_id'],

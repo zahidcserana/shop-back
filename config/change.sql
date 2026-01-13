@@ -21,3 +21,5 @@ UPDATE `sale_items` SET `batch_no` = 'BAT-321' WHERE 1;
 UPDATE `products` SET `batch_no` = 'BAT-321' WHERE 1;
 
 
+ALTER TABLE `cart_items` ADD `serial_no` JSON NULL AFTER `discount`;
+ALTER TABLE `sale_items` ADD `serial_no` JSON NULL AFTER `power`;

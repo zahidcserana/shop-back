@@ -65,6 +65,7 @@ class Sale extends Model
                         'exp_date' => $cartItem->exp_date,
                         'mfg_date' => $cartItem->mfg_date,
                         'batch_no' => $cartItem->batch_no,
+                        'serial_no' => !empty($cartItem->serial_no) ? json_encode($cartItem->serial_no): null,
                         'dar_no' => $cartItem->dar_no,
                         'unit_price' => $cartItem->unit_price,
                         'unit_type' => $cartItem->unit_type,

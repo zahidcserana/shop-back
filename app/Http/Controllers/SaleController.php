@@ -360,6 +360,10 @@ class SaleController extends Controller
           $range = explode(',', $request['sale_date']);
           return $q->whereBetween('sales.created_at', [$range[0], $range[1] . ' 23:59:59']);
       });
+      $baseQuery->when($request['serial_no'], function ($q) use ($request) {
+          $q->whereJsonContains('sale_items.serial_no', $request['serial_no']);
+      });
+
 
       // Group to prevent duplicates
       $baseQuery->groupBy('sales.id');

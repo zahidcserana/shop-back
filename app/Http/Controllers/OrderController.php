@@ -828,6 +828,7 @@ class OrderController extends Controller
                     $item['quantity']      = max(0, (int)($item['quantity'] ?? 0));
                     $item['free_qty']      = max(0, (int)($item['free_qty'] ?? 0));
                     $item['batch_no']      = empty($item['batch_no']) ? Medicine::$DEFAULT_BATCH: $item['batch_no'];
+                    $item['unit_price']    = empty($item['unit_price']) ? $item['box_trade_price'] :$item['unit_price'];
 
                     $medicine = Medicine::find($item['medicine_id']);
                     if (!$medicine) {
@@ -847,7 +848,7 @@ class OrderController extends Controller
                     $orderItem->free_qty       = $item['free_qty'];
                     $orderItem->exp_date       = $exp_date;
                     $orderItem->batch_no       = $item['batch_no'];
-                    $orderItem->unit_price     = $item['box_mrp'] ?? 0;
+                    $orderItem->unit_price     = $item['unit_price'];
                     $orderItem->sub_total      = $item['amount'] ?? 0;
                     $orderItem->mrp            = $item['box_mrp'] ?? 0;
                     $orderItem->trade_price    = $item['box_trade_price'] ?? 0;
@@ -885,6 +886,7 @@ class OrderController extends Controller
                     if (!empty($item['update_price'])) {
                         $product->mrp = $item['box_mrp'] ?? $product->mrp;
                         $product->tp  = $item['box_trade_price'] ?? $product->tp;
+                        $product->unit_price  = $item['unit_price'] ?? $product->unit_price;
                         $product->low_stock_qty = $item['low_stock_qty'] ?? $product->low_stock_qty;
                     }
 
@@ -2037,6 +2039,7 @@ class OrderController extends Controller
                 'products.batch_no',
                 'products.mrp',
                 'products.tp',
+                'products.unit_price',
                 'products.medicine_id',
                 'products.pharmacy_branch_id',
                 'medicines.brand_name as medicine_name',

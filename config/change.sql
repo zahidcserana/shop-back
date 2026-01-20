@@ -23,3 +23,7 @@ UPDATE `products` SET `batch_no` = 'BAT-321' WHERE 1;
 
 ALTER TABLE `cart_items` ADD `serial_no` JSON NULL AFTER `discount`;
 ALTER TABLE `sale_items` ADD `serial_no` JSON NULL AFTER `power`;
+
+
+ALTER TABLE `products` ADD `unit_price` FLOAT(15,2) NOT NULL DEFAULT '0.0' AFTER `tp`;
+-- ALTER TABLE `order_items` CHANGE `unit_price` `unit_price` FLOAT(15,2) NULL DEFAULT '0.00' COMMENT 'merchant price without TC';

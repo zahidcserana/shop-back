@@ -5,11 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Medicine;
+use App\Models\Product;
 
 class CartItem extends Model
 {
     use SoftDeletes;
     protected $guarded = [];
+
+    protected $casts = [
+        'serial_no' => 'array',
+    ];
 
     public function addItem($data)
     {
@@ -18,7 +24,12 @@ class CartItem extends Model
         if (empty($medicineData)) {
             return false;
         }
-        $medicineInfo = DB::table('products')->where('medicine_id', $data['medicine_id'])->first();
+        $medicineInfo = Product::where('medicine_id', $data['medicine_id'])
+            ->when(!empty($data['batch_no']), function ($query) use ($data) {
+                $query->where('products.batch_no', $data['batch_no']);
+            })
+            ->first();
+
         $data['unit_type'] = $data['unit_type'] ?? 'PCS';
 
         $item = array(
@@ -27,6 +38,8 @@ class CartItem extends Model
             // 'company_id' => $medicineData->company_id,
             'quantity' => $data['quantity'],
             'free_quantity' => $data['free_quantity'] ?? 0,
+            'batch_no' => empty($data['batch_no']) ? Medicine::$DEFAULT_BATCH: $data['batch_no'],
+            'serial_no' => isset($data['serial_no']) ? json_encode($data['serial_no']): null,
             // 'batch_no' => $medicineInfo ? $medicineInfo->batch_no : null,
             // 'exp_date' => $medicineInfo? $medicineInfo->exp_date : null,
             'cart_id' => $data['cart_id'],

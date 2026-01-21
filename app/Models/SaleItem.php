@@ -15,6 +15,10 @@ class SaleItem extends Model
     protected $guarded = [];
     use SoftDeletes;
 
+    protected $casts = [
+        'serial_no' => 'array',
+    ];
+
     public function addItem($orderId, $cartId)
     {
         $cartItemModel = new CartItem();

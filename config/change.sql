@@ -10,3 +10,20 @@ ALTER TABLE `pharmacy_branches` ADD `deleted_at` TIMESTAMP NULL AFTER `branch_co
 ALTER DATABASE showroom CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ALTER TABLE medicine_types CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ALTER TABLE medicine_companies CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE `order_items` CHANGE `batch_no` `batch_no` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'BAT-321';
+ALTER TABLE `cart_items` CHANGE `batch_no` `batch_no` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'BAT-321';
+ALTER TABLE `sale_items` CHANGE `batch_no` `batch_no` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'BAT-321';
+
+UPDATE `order_items` SET `batch_no` = 'BAT-321' WHERE 1;
+UPDATE `cart_items` SET `batch_no` = 'BAT-321' WHERE 1;
+UPDATE `sale_items` SET `batch_no` = 'BAT-321' WHERE 1;
+UPDATE `products` SET `batch_no` = 'BAT-321' WHERE 1;
+
+
+ALTER TABLE `cart_items` ADD `serial_no` JSON NULL AFTER `discount`;
+ALTER TABLE `sale_items` ADD `serial_no` JSON NULL AFTER `power`;
+
+
+ALTER TABLE `products` ADD `unit_price` FLOAT(15,2) NOT NULL DEFAULT '0.0' AFTER `tp`;
+-- ALTER TABLE `order_items` CHANGE `unit_price` `unit_price` FLOAT(15,2) NULL DEFAULT '0.00' COMMENT 'merchant price without TC';

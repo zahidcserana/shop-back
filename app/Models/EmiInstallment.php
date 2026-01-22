@@ -9,17 +9,23 @@ class EmiInstallment extends Model
 {
     
     protected $fillable = [
-        'emi_plan_id',
+        'sale_id',
+        'customer_id',
         'installment_no',
         'due_date',
         'amount',
         'paid_amount',
         'paid_date',
         'status'
-    ];    
+    ]; 
 
-    public function emiPlan()
+    public function sale()
     {
-        return $this->belongsTo(EmiPlan::class);
+        return $this->belongsTo(Sale::class);
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
     }
 }

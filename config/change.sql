@@ -29,39 +29,33 @@ ALTER TABLE `products` ADD `unit_price` FLOAT(15,2) NOT NULL DEFAULT '0.0' AFTER
 -- ALTER TABLE `order_items` CHANGE `unit_price` `unit_price` FLOAT(15,2) NULL DEFAULT '0.00' COMMENT 'merchant price without TC';
 
 
-CREATE TABLE emi_plans (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    sale_id BIGINT UNSIGNED NOT NULL,
-    customer_id BIGINT UNSIGNED NOT NULL,
-    total_amount DECIMAL(12,2) NOT NULL,
-    down_payment DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    emi_amount DECIMAL(12,2) NOT NULL,
-    total_installments INT NOT NULL,
-    start_date DATE NOT NULL,
-    interest_rate DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-    status ENUM('active','completed','cancelled') NOT NULL DEFAULT 'active',
-    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    INDEX idx_sale_id (sale_id),
-    INDEX idx_customer_id (customer_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ALTER TABLE customers
+MODIFY id BIGINT UNSIGNED AUTO_INCREMENT;
+
+ALTER TABLE sales
+MODIFY id BIGINT UNSIGNED AUTO_INCREMENT;
 
 CREATE TABLE emi_installments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    emi_plan_id BIGINT UNSIGNED NOT NULL,
+
+    sale_id BIGINT UNSIGNED NOT NULL,
+    customer_id BIGINT UNSIGNED NOT NULL,
+
     installment_no INT NOT NULL,
     due_date DATE NOT NULL,
+
     amount DECIMAL(12,2) NOT NULL,
     paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     paid_date DATE NULL,
+
     status ENUM('pending','partial','paid','overdue') NOT NULL DEFAULT 'pending',
 
-    INDEX idx_emi_plan_id (emi_plan_id),
-    UNIQUE KEY uniq_plan_installment (emi_plan_id, installment_no),
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
 
-    CONSTRAINT fk_emi_installments_plan
-        FOREIGN KEY (emi_plan_id)
-        REFERENCES emi_plans(id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    UNIQUE KEY uniq_sale_installment (sale_id, installment_no),
+    INDEX idx_sale_status (sale_id, status),
+    INDEX idx_customer_status (customer_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

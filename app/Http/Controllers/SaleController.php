@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use DateTime;
 use Validator;
 use Carbon\Carbon;
-use App\Models\EmiPlan;
 use App\Models\EmiInstallment;
 use App\Models\Cart;
 use App\Models\Sale;
@@ -1324,20 +1323,11 @@ class SaleController extends Controller
         $sale->total_due_amount / $request->installments,
         2
     );
-  
-    $emi = EmiPlan::create([
-        'sale_id' => $sale->id,
-        'customer_id' => $customer->id,
-        'total_amount' => $sale->total_payble_amount,
-        'down_payment' => $sale->total_advance_amount,
-        'emi_amount' => $emiAmount,
-        'total_installments' => $request->installments,
-        'start_date' => $sale->sale_date
-    ]);
 
     for ($i = 1; $i <= $request->installments; $i++) {
       EmiInstallment::create([
-          'emi_plan_id' => $emi->id,
+          'sale_id' => $sale->id,
+          'customer_id' => $customer->id,
           'installment_no' => $i,
           'due_date' => Carbon::parse($sale->sale_date)->addMonths($i-1),
           'amount' => $emiAmount

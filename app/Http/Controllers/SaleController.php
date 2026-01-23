@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use DateTime;
 use Validator;
 use Carbon\Carbon;
+use App\Models\EmiInstallment;
 use App\Models\Cart;
 use App\Models\Sale;
 use App\Models\Product;
@@ -215,12 +216,17 @@ class SaleController extends Controller
           $customer->balance += $order['total_payble_amount'];
           $customer->save();
         } else {
-          Customer::create([
+          $customer = Customer::create([
             'code' => $order['customer_mobile'],
             'mobile' => $order['customer_mobile'],
             'name' => $order['customer_name'],
             'balance' => $order['total_payble_amount']
           ]);
+        }
+
+        if ($request->payment_type == 'emi') {
+          $sale = Sale::find($order['order_id']);
+          $this->createEmi($request, $sale, $customer);
         }
       }
 
@@ -1310,5 +1316,22 @@ class SaleController extends Controller
         'data' => $report,
         'status' => true
     ]);
+  }
+  
+  public function createEmi(Request $request, Sale $sale, Customer $customer) {
+    $emiAmount = round(
+        $sale->total_due_amount / $request->installments,
+        2
+    );
+
+    for ($i = 1; $i <= $request->installments; $i++) {
+      EmiInstallment::create([
+          'sale_id' => $sale->id,
+          'customer_id' => $customer->id,
+          'installment_no' => $i,
+          'due_date' => Carbon::parse($sale->sale_date)->addMonths($i-1),
+          'amount' => $emiAmount
+      ]);
+    }
   }
 }

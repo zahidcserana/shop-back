@@ -119,6 +119,11 @@ $router->group(
                 $router->post('medicines/quantity', ['uses' => 'MedicineController@getAvailableQuantity']);
                 $router->get('supplier-sale-report', ['uses' => 'SaleController@supplierSaleReport']);
 
+                /**  */
+                $router->get('emi-installments', ['uses' => 'EmiInstallmentController@index']);
+                $router->post('emi-installments/{id}/pay', ['uses' => 'EmiInstallmentController@pay']);
+                $router->get('customers/search', ['uses' => 'CustomerController@search']);
+
                 /** Products */
                 $router->delete('product/{id}/delete', ['uses' => 'ProductController@destroy']);
                 $router->get('products/master-list', ['uses' => 'ProductController@index']);

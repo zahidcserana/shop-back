@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB;
 
 class Sale extends Model
 {
+    public const STATUS_COMPLETE = 'COMPLETE';
+    public const STATUS_DUE = 'DUE';
+
     protected $guarded = [];
 
     public function makeOrder($data)

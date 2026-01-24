@@ -103,6 +103,7 @@ class SaleController extends Controller
     $input = array(
       'total_payble_amount' => $data['total_payble_amount'] ?? 0,
       'discount' => $data['discount'] ?? 0,
+      'total_due_amount' => $data['total_due_amount'] ?? 0,
       'updated_at' => $data['updated_at'],
       'updated_by' => $data['updated_by'],
     );

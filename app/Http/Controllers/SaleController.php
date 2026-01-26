@@ -282,8 +282,11 @@ class SaleController extends Controller
 
   public function deleteItem(Request $request)
   {
+    $user = $request->auth;
     $data = $request->all();
     $cartItemModel = new SaleItem();
+    $data['updated_by'] = $user->id;
+    $data['updated_at'] = Carbon::now();
     $result = $cartItemModel->deleteItem($data);
 
     return response()->json($result);
@@ -542,36 +545,74 @@ class SaleController extends Controller
   {
     $user = $request->auth;
     $data = $request->all();
-    $data['updated_at'] = date('Y-m-d H:i:s');
-    $data['updated_by'] = $user->id;
-    $itemData = SaleItem::where('id', $data['item_id'])->first();
-    if ($itemData->quantity == $data['new_quantity'] || $data['new_quantity'] == 0 || $data['new_quantity'] > $itemData->quantity) {
-      return response()->json(['success' => false, 'data' => []]);
+
+    // Basic validation
+    if (!isset($data['item_id'], $data['new_quantity'])) {
+        return response()->json(['success' => false, 'message' => 'Invalid request'], 400);
     }
-    $saleData = Sale::where('id', $itemData->sale_id)->first();
 
-    $changeLog = $this->_changeLog($itemData, $data);
-    $saleItem = new SaleItem();
-    $saleItem->returnUpdateInventoryQuantity($itemData, $itemData->quantity - $data['new_quantity'], 'add');
-
-    $input = array(
-      'quantity' => $data['new_quantity'],
-      'unit_type' => $data['unit_type'] ?? 'PCS',
-      'sub_total' => $itemData->unit_price * $data['new_quantity'],
-      'change_log' => json_encode($changeLog),
-      'updated_at' => $data['updated_at'],
-      'updated_by' => $data['updated_by'],
-      'return_status' => 'CHANGE',
-      'refund_quantity' => $itemData->refund_quantity + ($itemData->quantity - $data['new_quantity'])
-    );
-    $saleModel = new Sale();
-
-    if ($itemData->update($input)) {
-      $saleModel->updateOrder($itemData->sale_id);
-      return response()->json(['success' => true, 'data' => $saleModel->getOrderDetails($itemData->sale_id)]);
+    $itemData = SaleItem::find($data['item_id']);
+    if (!$itemData) {
+        return response()->json(['success' => false, 'message' => 'Sale item not found'], 404);
     }
-    return response()->json(['success' => false, 'data' => $saleModel->getOrderDetails($itemData->sale_id)]);
+
+    // Quantity validation
+    if (
+        $data['new_quantity'] < 1 ||
+        $data['new_quantity'] >= $itemData->quantity
+    ) {
+        return response()->json(['success' => false, 'message' => 'Invalid quantity'], 422);
+    }
+
+    $returnQty = $itemData->quantity - $data['new_quantity'];
+
+    DB::beginTransaction();
+
+    try {
+        // Change log
+        $changeLog = $this->_changeLog($itemData, $data);
+
+        // Return inventory
+        $saleItemModel = new SaleItem();
+        $saleItemModel->returnUpdateInventoryQuantity(
+            $itemData,
+            $returnQty,
+            'add'
+        );
+
+        // Update sale item
+        $itemData->update([
+            'quantity'        => $data['new_quantity'],
+            'unit_type'       => $data['unit_type'] ?? 'PCS',
+            'sub_total'       => $itemData->unit_price * $data['new_quantity'],
+            'change_log'      => json_encode($changeLog),
+            'updated_at'      => Carbon::now(),
+            'updated_by'      => $user->id,
+            'return_status'   => Sale::RETURN_STATUS_CHANGE,
+            'refund_quantity' => $itemData->refund_quantity + $returnQty
+        ]);
+
+        // Update sale order totals
+        $saleModel = new Sale();
+        $saleModel->updateOrder($itemData->sale_id);
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'data' => $saleModel->getOrderDetails($itemData->sale_id)
+        ]);
+
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
   }
+  
   public function _changeLog($itemData, $data)
   {
     $changeLog = array();
@@ -847,185 +888,193 @@ class SaleController extends Controller
 
   public function saleReturnReport(Request $request)
   {
-    $query = $request->query();
-
-    $pageNo = $request->query('page_no') ?? 1;
-    $limit = $request->query('limit') ?? 1000;
-    $offset = (($pageNo - 1) * $limit);
-    $where = array();
     $user = $request->auth;
+    $queryParams = $request->query();
+
+    $pageNo = $queryParams['page_no'] ?? 1;
+    $limit  = $queryParams['limit'] ?? 1000;
+
     $dateRangeData = '';
-    $where = array_merge(array(['sales.pharmacy_branch_id', $user->pharmacy_branch_id]), $where);
 
-    if (!empty($query['invoice'])) {
-      $where = array_merge(array(['sales.invoice', 'LIKE', '%' . $query['invoice'] . '%']), $where);
-    }
-    if (!empty($query['payment_type'])) {
-      $where = array_merge(array(['sales.payment_type', 'LIKE', '%' . $query['payment_type'] . '%']), $where);
-    }
+    /** ---------------------------
+     * Base Query
+     * --------------------------*/
+    $query = Sale::query()
+        ->where('sales.pharmacy_branch_id', $user->pharmacy_branch_id)
+        ->whereIn('sale_items.return_status', [
+            Sale::RETURN_STATUS_FULL_RETURN,
+            Sale::RETURN_STATUS_CHANGE
+        ])
+        ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+        ->join('medicines', 'sale_items.medicine_id', '=', 'medicines.id')
+        ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
+        ->join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
+        ->join('users', 'sales.created_by', '=', 'users.id');
 
-    if (!empty($query['sales_man_name'])) {
-      $where = array_merge(array(['users.name', 'LIKE', '%' . $query['sales_man_name'] . '%']), $where);
-    }
-    if (!empty($query['sales_man'])) {
-      $where = array_merge(array(['users.id', $query['sales_man']]), $where);
-    }
-    // if (!empty($query['user_id'])) {
-    //     $where = array_merge(array(['users.id', $query['user_id']]), $where);
-    // }
-    if (!empty($query['sale_date'])) {
-      $dateRange = explode(',', $query['sale_date']);
-      // $query = Sale::where($where)->whereBetween('created_at', $dateRange);
-      if (!empty($query['start_time']) && !empty($query['start_time'])) {
-        $start = $dateRange[0] . ' ' . $query['start_time'] . ':00' . ':00';
-        $end = $dateRange[0] . ' ' . $query['end_time'] . ':00' . ':00';
-        $where = array_merge(array(['sales.created_at', '>=', $start]), $where);
-        $where = array_merge(array(['sales.created_at', '<=', $end]), $where);
-      } else {
-        $where = array_merge(array([DB::raw('DATE(sales.created_at)'), '>=', $dateRange[0]]), $where);
-        $where = array_merge(array([DB::raw('DATE(sales.created_at)'), '<=', $dateRange[1]]), $where);
-      }
-      $dateRangeData = $dateRange[0] . ' - ' . $dateRange[1];
+    /** ---------------------------
+     * Filters
+     * --------------------------*/
+    $query->when($queryParams['invoice'] ?? null, fn ($q, $v) =>
+        $q->where('sales.invoice', 'LIKE', "%{$v}%")
+    );
+
+    $query->when($queryParams['payment_type'] ?? null, fn ($q, $v) =>
+        $q->where('sales.payment_type', 'LIKE', "%{$v}%")
+    );
+
+    $query->when($queryParams['sales_man_name'] ?? null, fn ($q, $v) =>
+        $q->where('users.name', 'LIKE', "%{$v}%")
+    );
+
+    $query->when($queryParams['sales_man'] ?? null, fn ($q, $v) =>
+        $q->where('users.id', $v)
+    );
+
+    $query->when($queryParams['generic'] ?? null, fn ($q, $v) =>
+        $q->where('medicines.generic_name', 'LIKE', "%{$v}%")
+    );
+
+    $query->when($queryParams['product_id'] ?? null, fn ($q, $v) =>
+        $q->where('sale_items.medicine_id', $v)
+    );
+
+    $query->when($queryParams['product_type_id'] ?? null, fn ($q, $v) =>
+        $q->where('sale_items.product_type', $v)
+    );
+
+    $query->when($queryParams['customer_mobile'] ?? null, fn ($q, $v) =>
+        $q->where('sales.customer_mobile', 'LIKE', "%{$v}%")
+    );
+
+    $query->when($queryParams['customer_name'] ?? null, fn ($q, $v) =>
+        $q->where('sales.customer_name', 'LIKE', "%{$v}%")
+    );
+
+    /** ---------------------------
+     * Date Range
+     * --------------------------*/
+    if (!empty($queryParams['sale_date'])) {
+        [$startDate, $endDate] = explode(',', $queryParams['sale_date']);
+
+        $query->whereBetween(DB::raw('DATE(sales.created_at)'), [$startDate, $endDate]);
+        $dateRangeData = "{$startDate} - {$endDate}";
     } else {
-      $today = date('Y-m-d');
-      $lastMonth = date("Y-m-d", strtotime("-1 month"));
-      $where = array_merge(array([DB::raw('DATE(sales.created_at)'), '>=', $lastMonth]), $where);
-      $where = array_merge(array([DB::raw('DATE(sales.created_at)'), '<=', $today]), $where);
-      $dateRangeData = $lastMonth . ' - ' . $today;
-    }
-    // if (!empty($query['company'])) {
-    //   $where = array_merge(array(['medicine_companies.company_name', 'LIKE', '%' . $query['company'] . '%']), $where);
-    // }
-    if (!empty($query['generic'])) {
-      $where = array_merge(array(['medicines.generic_name', 'LIKE', '%' . $query['generic'] . '%']), $where);
-    }
-    if (!empty($query['product_id'])) {
-      $where = array_merge(array(['sale_items.medicine_id', $query['product_id']]), $where);
-    }
-    if (!empty($query['product_type_id'])) {
-      $where = array_merge(array(['sale_items.product_type', $query['product_type_id']]), $where);
-    }
-    if (!empty($query['customer_mobile'])) {
-      $where = array_merge(array(['sales.customer_mobile', 'LIKE', '%' . $query['customer_mobile'] . '%']), $where);
-    }
-    if (!empty($query['customer_name'])) {
-      $where = array_merge(array(['sales.customer_name', 'LIKE', '%' . $query['customer_name'] . '%']), $where);
+        $startDate = Carbon::now()->subMonth()->toDateString();
+        $endDate   = Carbon::now()->toDateString();
+
+        $query->whereBetween(DB::raw('DATE(sales.created_at)'), [$startDate, $endDate]);
+        $dateRangeData = "{$startDate} - {$endDate}";
     }
 
-    $query = Sale::where($where)
-      ->whereIn('sale_items.return_status', ['RETURN', 'CHANGE'])
-      ->join('sale_items', 'sales.id', '=', 'sale_items.sale_id')
-      // ->join('medicine_companies', 'sale_items.company_id', '=', 'medicine_companies.id')
-      ->join('medicines', 'sale_items.medicine_id', '=', 'medicines.id')
-      ->leftJoin('brands', 'medicines.brand_id', '=', 'brands.id')
-      ->join('medicine_types', 'medicines.medicine_type_id', '=', 'medicine_types.id')
-      ->join('users', 'sales.created_by', '=', 'users.id');
-
-    $total = $query->count();
+    /** ---------------------------
+     * Fetch Data
+     * --------------------------*/
     $orders = $query
       ->select(
-        'sales.created_at as sale_date',
-        'sales.payment_type',
-        'sales.id as sale_id',
-        'sales.invoice',
-        'sales.sub_total as sale_amount',
-        'sales.total_payble_amount',
-        'sales.discount as sale_discount',
-        'sales.total_due_amount as sale_due',
-        'sales.customer_name',
-        'sales.customer_mobile',
-        'sale_items.id as item_id',
-        'sale_items.medicine_id',
-        'sale_items.refund_quantity',
-        'sale_items.quantity',
-        'sale_items.change_log',
-        'sale_items.sub_total',
-        'sale_items.unit_price as mrp',
-        'sale_items.tp',
-        'users.name',
-        'users.user_mobile',
-        'medicines.company_id as company_id',
-        'medicines.brand_name',
-        'medicines.strength',
-        'medicine_types.name as medicine_type',
-        'brands.name as brand'
-        // 'medicine_companies.company_name as medicine_company'
+          'sales.id as sale_id',
+          'sales.invoice',
+          'sales.payment_type',
+          'sales.created_at as sale_date',
+          'sales.sub_total as sale_amount',
+          'sales.discount as sale_discount',
+          'sales.total_due_amount as sale_due',
+          'sales.total_payble_amount',
+          'sales.customer_name',
+          'sales.customer_mobile',
+          'users.name as sales_man',
+          'sale_items.medicine_id',
+          'sale_items.quantity',
+          'sale_items.refund_quantity',
+          'sale_items.sub_total',
+          'sale_items.unit_price as mrp',
+          'sale_items.tp',
+          'sale_items.change_log',
+          'medicines.brand_name',
+          'medicines.strength',
+          'medicine_types.name as medicine_type',
+          'brands.name as brand'
       )
-      ->orderBy('sales.id', 'desc')
-      ->get();
-    $result = array();
-    foreach ($orders as $element) {
-      $result[$element['sale_id']][] = $element;
-    }
-    $array = array();
-    $sum_total_profit = 0;
-    $sum_sale_amount = 0;
-    $sum_sale_discount = 0;
-    $sum_grand_total = 0;
-    $sum_sale_due = 0;
-    $sum_quantity = 0;
+      ->orderByDesc('sales.id')
+      ->get()
+      ->groupBy('sale_id');
 
-    foreach ($result as $i => $item) {
-      $items = array();
-      $t = 0;
-      $total_profit = 0;
-      foreach ($item as $aItem) {
-        if ($t == 0) {
-          $saleData = array(
-            'sale_id' => $i,
-            'invoice' => $aItem->invoice,
-            'payment_type' => $aItem->payment_type,
-            'sale_date' => $aItem->sale_date,
-            'sales_man' => $aItem->name,
-            'customer' => ['name' => $aItem->customer_name, 'mobile' => $aItem->customer_mobile],
-            'sale_amount' => $aItem->sale_amount,
-            'sale_discount' => $aItem->sale_discount,
-            'sale_due' => $aItem->sale_due,
-            'grand_total' => $aItem->total_payble_amount
-          );
-          $sum_sale_amount += $aItem->sale_amount;
-          $sum_sale_discount += $aItem->sale_discount;
-          $sum_grand_total += $aItem->total_payble_amount;
-          $sum_sale_due += $aItem->sale_due;
-        }
-        $sum_quantity += $aItem->quantity;
-        $sub_tp = $aItem->tp * $aItem->quantity;
-        $profit = $aItem->sub_total - $sub_tp;
-        $total_profit += $profit;
-        $aData = array();
-        $aData['medicine'] = ['id' => $aItem->medicine_id, 'brand' => $aItem->brand, 'name' => $aItem->brand_name, 'type' => substr($aItem->medicine_type, 0, 3)];
-        $aData['quantity'] = $aItem->quantity;
-        $aData['mrp'] = $aItem->mrp;
-        $aData['tp'] = $aItem->tp;
-        $aData['sub_tp'] = $sub_tp;
-        $aData['profit'] = $profit;
-        $aData['sub_total'] = $aItem->sub_total;
-        $aData['refund_quantity'] = $aItem->refund_quantity;
-        $aData['change_log'] = !empty($aItem->change_log) ? json_decode($aItem->change_log, true) : [];
-        $items[] = $aData;
-        $t++;
+    /** ---------------------------
+     * Aggregation
+     * --------------------------*/
+    $summary = [
+        'sum_total_profit'  => 0,
+        'sum_sale_amount'   => 0,
+        'sum_sale_discount' => 0,
+        'sum_grand_total'   => 0,
+        'sum_sale_due'      => 0,
+        'sum_quantity'      => 0,
+        'dateRangeData'     => $dateRangeData,
+    ];
+
+    $data = [];
+
+    foreach ($orders as $saleId => $items) {
+
+      $first = $items->first();
+      $totalProfit = 0;
+      $itemList = [];
+
+      foreach ($items as $item) {
+        $subTp  = $item->tp * $item->quantity;
+        $profit = $item->sub_total - $subTp;
+
+        $totalProfit += $profit;
+        $summary['sum_quantity'] += $item->quantity;
+
+        $itemList[] = [
+            'medicine' => [
+                'id'    => $item->medicine_id,
+                'brand' => $item->brand,
+                'name'  => $item->brand_name,
+                'type'  => substr($item->medicine_type, 0, 3),
+            ],
+            'quantity'        => $item->quantity,
+            'refund_quantity' => $item->refund_quantity,
+            'mrp'             => $item->mrp,
+            'tp'              => $item->tp,
+            'sub_tp'          => $subTp,
+            'profit'          => $profit,
+            'sub_total'       => $item->sub_total,
+            'change_log'      => json_decode($item->change_log, true) ?? [],
+        ];
       }
-      $sum_total_profit += $total_profit;
-      $saleData['total_profit'] = $total_profit;
-      $saleData['item'] = $items;
 
-      $array[] = $saleData;
+      $summary['sum_total_profit']  += $totalProfit;
+      $summary['sum_sale_amount']   += $first->sale_amount;
+      $summary['sum_sale_discount'] += $first->sale_discount;
+      $summary['sum_grand_total']   += $first->total_payble_amount;
+      $summary['sum_sale_due']      += $first->sale_due;
+
+      $data[] = [
+        'sale_id'       => $saleId,
+        'invoice'       => $first->invoice,
+        'payment_type'  => $first->payment_type,
+        'sale_date'     => $first->sale_date,
+        'sales_man'     => $first->sales_man,
+        'customer'      => [
+            'name'   => $first->customer_name,
+            'mobile' => $first->customer_mobile
+        ],
+        'sale_amount'   => $first->sale_amount,
+        'sale_discount' => $first->sale_discount,
+        'sale_due'      => $first->sale_due,
+        'grand_total'   => $first->total_payble_amount,
+        'total_profit'  => $totalProfit,
+        'item'          => $itemList,
+      ];
     }
-    $sammary = array(
-      'sum_total_profit' => $sum_total_profit,
-      'sum_sale_amount' => $sum_sale_amount,
-      'sum_sale_discount' => $sum_sale_discount,
-      'sum_grand_total' => $sum_grand_total,
-      'sum_sale_due' => $sum_sale_due,
-      'sum_quantity' => $sum_quantity,
-      'dateRangeData' => $dateRangeData,
-    );
-    $data = array(
-      'data' => $array,
-      'summary' => $sammary,
-    );
-    return response()->json($data);
+
+    return response()->json([
+        'data'    => $data,
+        'summary' => $summary
+    ]);
   }
+
 
   public function summary($where)
   {

@@ -2265,7 +2265,22 @@ class OrderController extends Controller
         $generic =  $decode_filter['generic'] ?? 0;
         $low_stock_qty = $decode_filter['low_stock_qty'];
 
-        $inventory = Product::select('products.id', 'products.quantity', 'products.batch_no', 'products.mrp', 'products.tp', 'products.medicine_id', 'products.pharmacy_branch_id', 'medicines.brand_name as medicine_name', 'medicines.generic_name as generic', 'medicines.barcode', 'medicines.strength', 'medicine_types.name as medicine_type', 'products.company_id', 'products.low_stock_qty', 'brands.name as brand')
+        $inventory = Product::select(
+            'products.id',
+            'products.quantity',
+            'products.batch_no',
+            'products.mrp',
+            'products.unit_price',
+            'products.tp',
+            'products.medicine_id',
+            'products.pharmacy_branch_id',
+            'medicines.brand_name as medicine_name',
+            'medicines.generic_name as generic',
+            'medicines.barcode', 'medicines.strength',
+            'medicine_types.name as medicine_type',
+            'products.company_id', 'products.low_stock_qty',
+            'brands.name as brand'
+            )
             ->orderBy('medicines.brand_name', 'ASC')
             ->where('products.pharmacy_branch_id', $user->pharmacy_branch_id)
             // ->when($company, function ($query, $company) {

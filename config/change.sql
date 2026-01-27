@@ -27,3 +27,35 @@ ALTER TABLE `sale_items` ADD `serial_no` JSON NULL AFTER `power`;
 
 ALTER TABLE `products` ADD `unit_price` FLOAT(15,2) NOT NULL DEFAULT '0.0' AFTER `tp`;
 -- ALTER TABLE `order_items` CHANGE `unit_price` `unit_price` FLOAT(15,2) NULL DEFAULT '0.00' COMMENT 'merchant price without TC';
+
+
+
+ALTER TABLE customers
+MODIFY id BIGINT UNSIGNED AUTO_INCREMENT;
+
+ALTER TABLE sales
+MODIFY id BIGINT UNSIGNED AUTO_INCREMENT;
+
+CREATE TABLE emi_installments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    sale_id BIGINT UNSIGNED NOT NULL,
+    customer_id BIGINT UNSIGNED NOT NULL,
+
+    installment_no INT NOT NULL,
+    due_date DATE NOT NULL,
+
+    amount DECIMAL(12,2) NOT NULL,
+    paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    paid_date DATE NULL,
+
+    status ENUM('pending','partial','paid','overdue') NOT NULL DEFAULT 'pending',
+
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+
+    UNIQUE KEY uniq_sale_installment (sale_id, installment_no),
+    INDEX idx_sale_status (sale_id, status),
+    INDEX idx_customer_status (customer_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

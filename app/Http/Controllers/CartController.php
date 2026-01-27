@@ -24,7 +24,7 @@ class CartController extends Controller
             ]);
             $cart = Cart::where('token', $data['token'])->first();
 
-            if ($cart && CartItem::where('medicine_id', $data['medicine_id'])->where('cart_id', $cart->id)->first()) {
+            if ($cart && CartItem::where('medicine_id', $data['medicine_id'])->where('batch_no', $data['batch_no'])->where('cart_id', $cart->id)->first()) {
                 return response()->json(['success' => false, 'error' => 'Already added this item!']);
             }
 

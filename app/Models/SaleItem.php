@@ -15,6 +15,10 @@ class SaleItem extends Model
     protected $guarded = [];
     use SoftDeletes;
 
+    protected $casts = [
+        'serial_no' => 'array',
+    ];
+
     public function addItem($orderId, $cartId)
     {
         $cartItemModel = new CartItem();
@@ -63,6 +67,8 @@ class SaleItem extends Model
         $orderModel = new Sale();
         $item = $this::find($data['item_id']);
         $item->return_status = 'RETURN';
+        $item->updated_by = $data['updated_by'];
+        $item->updated_at = $data['updated_at'];
         $orderId = $item->sale_id;
         $item->update();
         if ($this::where('sale_id', $orderId)->where('return_status', '<>', 'RETURN')->first()) {

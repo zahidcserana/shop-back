@@ -245,13 +245,14 @@ class MedicineController extends Controller
                 ->orWhere('barcode', 'like', $str);
             })
             ->orderBy('brand_name', 'asc')
-            ->select('medicines.*')
+            ->select('medicines.*', 'products.batch_no')
             ->get();
 
         $data = $medicines->map(function ($medicine) {
             return [
                 'id' => $medicine->id,
-                'name' => $medicine->brand_name,
+                'name' => $medicine->brand_name ,
+                'batch_no' => $medicine->batch_no,
                 'company' => '',
             ];
         });
@@ -312,6 +313,9 @@ class MedicineController extends Controller
             ->select(DB::raw('SUM(quantity) as available_quantity'))
             ->where('medicine_id', $request->input('medicine_id'))
             ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
+            ->when($request->filled('batch_no'), function ($query) use ($request) {
+                $query->where('products.batch_no', $request->batch_no);
+            })
             ->first();
 
         $cartItem = new CartItem();

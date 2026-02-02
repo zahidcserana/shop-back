@@ -115,11 +115,7 @@ class Sale extends Model
     public function updateInventoryQuantity($item, $quantity, $status = 'add') 
     {
         $cart = Cart::find($item->cart_id);
-
-        $inventory = Product::where('medicine_id', $item->medicine_id)
-                    ->where('pharmacy_branch_id', $cart->pharmacy_branch_id)
-                    ->where('batch_no', $item->batch_no)
-                    ->first();
+        $inventory = Product::where('medicine_id', $item->medicine_id)->where('pharmacy_branch_id', $cart->pharmacy_branch_id)->first();
         
         if($inventory) {
             $aQty = $status == 'add' ? $inventory->quantity + $quantity : $inventory->quantity - $quantity;

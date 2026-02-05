@@ -9,5 +9,14 @@ class Pharmacy extends Model
 {
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'pharmacy_shop_code',
+        'pharmacy_shop_name',
+        'pharmacy_shop_owner_name',
+        'pharmacy_shop_licence_no',
+        'pharmacy_shop_branch_owner_nid',
+        'pharmacy_shop_license_exp_date',
+        'pharmacy_shop_dgda_verification_status'
+    ];
+
 }

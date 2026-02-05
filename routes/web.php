@@ -255,10 +255,30 @@ $router->group(
                     function () use ($router) {
                         // $router->post('clear', ['uses' => 'AdminController@reset']);
                         // $router->post('clean-db/{clientId}', ['uses' => 'AdminController@cleanDatabase']);
-                        $router->get('shops', ['uses' => 'AdminController@shops']);
-                        $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
-                        $router->post('shops/update/{branchId}', ['uses' => 'AdminController@updateShop']);
-                        $router->get('branches', ['uses' => 'AdminController@branches']);
+                        // $router->get('shops', ['uses' => 'AdminController@shops']);
+                        // $router->post('shops/store', ['uses' => 'AdminController@storeShop']);
+                        // $router->post('shops/update/{branchId}', ['uses' => 'AdminController@updateShop']);
+                        // $router->get('branches', ['uses' => 'AdminController@branches']);
+
+                        // -------------------------------
+                        // Clients (Previously Pharmacies)
+                        // -------------------------------
+                        $router->get('clients', 'Admin\PharmacyController@index');         // list all clients
+                        $router->post('clients', 'Admin\PharmacyController@store');        // create client
+                        $router->get('clients/{id}', 'Admin\PharmacyController@show');     // get client details
+                        $router->put('clients/{id}', 'Admin\PharmacyController@update');   // update client
+                        $router->delete('clients/{id}', 'Admin\PharmacyController@destroy'); // delete client
+
+                        // -------------------------------
+                        // Shops (Previously Branches)
+                        // -------------------------------
+                        $router->get('shops', 'Admin\PharmacyBranchController@index');          // list all shops
+                        $router->post('shops', 'Admin\PharmacyBranchController@store');         // create shop
+                        $router->get('shops/{id}', 'Admin\PharmacyBranchController@show');      // get single shop
+                        $router->put('shops/{id}', 'Admin\PharmacyBranchController@update');    // update shop
+                        $router->put('shops/{id}/subscription', 'Admin\PharmacyBranchController@subscription');    // update shop
+                        $router->delete('shops/{id}', 'Admin\PharmacyBranchController@destroy'); // delete shop
+
                     }
                 );
             }

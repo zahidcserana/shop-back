@@ -59,3 +59,4 @@ CREATE TABLE emi_installments (
     INDEX idx_customer_status (customer_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE `customers` ADD `pharmacy_id` INT NULL AFTER `id`, ADD `pharmacy_branch_id` INT NULL AFTER `pharmacy_id`;

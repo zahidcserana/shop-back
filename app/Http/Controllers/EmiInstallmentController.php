@@ -30,7 +30,10 @@ class EmiInstallmentController extends Controller
     $limit  = (int) $request->query('limit', 20);
     $offset = ($pageNo - 1) * $limit;
 
-    $query = EmiInstallment::with(['customer', 'sale']);
+
+    $query = EmiInstallment::with(['customer', 'sale'])
+          ->leftJoin('sales', 'sales.id', '=', 'emi_installments.sale_id')
+          ->where('sales.pharmacy_branch_id', $request->auth->pharmacy_branch_id);
 
     // Month filter
     if ($request->filled('month')) {
@@ -60,6 +63,7 @@ class EmiInstallmentController extends Controller
         ->orderBy('due_date')
         ->offset($offset)
         ->limit($limit)
+        ->select('emi_installments.*')
         ->get();
 
     // Summary (ALL filtered rows)

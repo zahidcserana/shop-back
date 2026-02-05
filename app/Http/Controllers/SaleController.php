@@ -53,7 +53,10 @@ class SaleController extends Controller
   public function paymentTypes(Request $request)
   {
     $user = $request->auth;
-    $paymentTypes = PaymentType::select('id', 'name')->where('pharmacy_branch_id', $user->pharmacy_branch_id)->get();
+    $paymentTypes = PaymentType::select('id', 'name')
+                ->where('pharmacy_branch_id', $user->pharmacy_branch_id)
+                ->where('status', 'ACTIVE')
+                ->get();
     return response()->json($paymentTypes);
   }
 
@@ -201,6 +204,7 @@ class SaleController extends Controller
   {
     try {
       $data = $request->all();
+      $user    = $request->auth;
 
       $this->validate($request, [
         'token' => 'required',
@@ -211,13 +215,25 @@ class SaleController extends Controller
       $order = $response['data'];
 
       if ($response['success'] && !empty($order['customer_mobile'])) {
-        $customer = Customer::where('code', $order['customer_mobile'])->orWhere('mobile', $order['customer_mobile'])->first();
+        $mobile = $order['customer_mobile'];
+
+        $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)
+            ->where(fn ($q) =>
+                $q->where('code', $mobile)
+                  ->orWhere('mobile', $mobile)
+            )
+            ->first();
+
+
+        // $customer = Customer::where('code', $order['customer_mobile'])->orWhere('mobile', $order['customer_mobile'])->first();
 
         if ($customer) {
           $customer->balance += $order['total_payble_amount'];
           $customer->save();
         } else {
           $customer = Customer::create([
+            'pharmacy_branch_id' => $user->pharmacy_branch_id,
+            'pharmacy_id' => $user->pharmacy_id,
             'code' => $order['customer_mobile'],
             'mobile' => $order['customer_mobile'],
             'name' => $order['customer_name'],
@@ -243,17 +259,21 @@ class SaleController extends Controller
 
   public function getCustomerByCode(Request $request)
   {
-      $code = $request->input('customer_code');
+    $code = $request->input('customer_code');
+    $user = $request->auth;
 
-      if (!$code) {
-          return response()->json(null);
-      }
+    if (!$code) {
+        return response()->json(null);
+    }
 
-      $customer = Customer::where('code', $code)
-          ->orWhere('mobile', $code)
-          ->first();
+    $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)
+        ->where(fn ($q) =>
+            $q->where('code', $code)
+              ->orWhere('mobile', $code)
+        )
+        ->first();
 
-      return response()->json($customer);
+    return response()->json($customer);
   }
 
   private function _sendMessage($data)

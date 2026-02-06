@@ -43,7 +43,7 @@ class EmiInstallmentController extends Controller
 
     // Status filter
     if ($request->filled('status')) {
-        $query->where('status', $request->status);
+        $query->where('emi_installments.status', $request->status);
     }
 
     // Customer filter

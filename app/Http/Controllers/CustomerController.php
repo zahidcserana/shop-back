@@ -24,33 +24,41 @@ class CustomerController extends Controller
 
   public function index(Request $request)
   {
-    $user = $request->auth;
-    $limit = (int) ($request->limit ?? 20);
-    $page = max((int) ($request->page ?? 1), 1);
-    $offset = ($page - 1) * $limit;
+    try {
+      $user = $request->auth;
+      $limit = (int) ($request->limit ?? 20);
+      $page = max((int) ($request->page ?? 1), 1);
+      $offset = ($page - 1) * $limit;
 
-    $query = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id);
+      $query = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id);
 
-    if (!empty($request->q)) {
-      $query->where(function ($q) use ($request) {
-        $q->where('name', 'like', '%' . $request->q . '%')
-          ->orWhere('mobile', 'like', '%' . $request->q . '%')
-          ->orWhere('code', 'like', '%' . $request->q . '%');
-      });
+      if (!empty($request->q)) {
+        $query->where(function ($q) use ($request) {
+          $q->where('name', 'like', '%' . $request->q . '%')
+            ->orWhere('mobile', 'like', '%' . $request->q . '%')
+            ->orWhere('code', 'like', '%' . $request->q . '%');
+        });
+      }
+
+      $total = $query->count();
+      $customers = $query->orderBy('id', 'desc')
+        ->offset($offset)
+        ->limit($limit)
+        ->get();
+
+      return response()->json([
+        'total' => $total,
+        'data' => $customers,
+        'page' => $page,
+        'limit' => $limit,
+      ]);
+    } catch (\Throwable $th) {
+      return response()->json([
+          'success' => false,
+          'message' => 'Something went wrong!',
+          'error'   => $th->getMessage(),
+      ], 500);
     }
-
-    $total = $query->count();
-    $customers = $query->orderBy('id', 'desc')
-      ->offset($offset)
-      ->limit($limit)
-      ->get();
-
-    return response()->json([
-      'total' => $total,
-      'data' => $customers,
-      'page' => $page,
-      'limit' => $limit,
-    ]);
   }
 
   public function show(Request $request, $id)
@@ -65,67 +73,92 @@ class CustomerController extends Controller
 
   public function store(Request $request)
   {
-    $user = $request->auth;
+    try {
+      $user = $request->auth;
 
-    $this->validate($request, [
-      'code' => 'required|string|max:50',
-      'mobile' => 'required|string|max:50',
-      'name' => 'nullable|string|max:255',
-      'email' => 'nullable|email|max:255',
-      'balance' => 'nullable|numeric',
-    ]);
+      $this->validate($request, [
+        'mobile' => 'required|string|max:50',
+        'name' => 'nullable|string|max:255',
+        'email' => 'nullable|email|max:255',
+        'balance' => 'nullable|numeric',
+      ]);
 
-    $customer = Customer::create([
-      'pharmacy_branch_id' => $user->pharmacy_branch_id,
-      'code' => $request->code,
-      'mobile' => $request->mobile,
-      'name' => $request->name,
-      'email' => $request->email,
-      'balance' => $request->balance ?? 0,
-    ]);
+      $customer = Customer::create([
+        'pharmacy_branch_id' => $user->pharmacy_branch_id,
+        'code' => $request->mobile,
+        'mobile' => $request->mobile,
+        'name' => $request->name,
+        'email' => $request->email,
+        'address' => $request->address,
+        'balance' => $request->balance ?? 0,
+        'status' => Customer::STATUS_ACTIVE,
+      ]);
 
-    return response()->json($customer, 201);
+      return response()->json([
+          'status' => true,
+          'data' => $customer
+      ], 201);
+    } catch (\Throwable $th) {
+      return response()->json([
+          'success' => false,
+          'message' => 'Save failed.',
+          'error'   => $th->getMessage(),
+      ], 500);
+    }
   }
 
   public function update(Request $request, $id)
   {
-    $user = $request->auth;
-    $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)
-      ->findOrFail($id);
+    try {
+      $user = $request->auth;
+      $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)->findOrFail($id);
 
-    $this->validate($request, [
-      'code' => 'sometimes|required|string|max:50',
-      'mobile' => 'sometimes|required|string|max:50',
-      'name' => 'nullable|string|max:255',
-      'email' => 'nullable|email|max:255',
-      'balance' => 'nullable|numeric',
-    ]);
+      $this->validate($request, [
+        'code' => 'sometimes|required|string|max:50',
+        'mobile' => 'sometimes|required|string|max:50',
+        'name' => 'nullable|string|max:255',
+        'email' => 'nullable|email|max:255',
+        'balance' => 'nullable|numeric',
+      ]);
 
-    $customer->fill($request->only([
-      'code',
-      'mobile',
-      'name',
-      'email',
-      'balance',
-    ]));
-    $customer->save();
+      $customer->fill($request->only([
+        'code',
+        'mobile',
+        'name',
+        'email',
+        'balance',
+        'address',
+        'status',
+      ]));
 
-    return response()->json($customer);
+      $customer->save();
+
+      return response()->json([
+          'status' => true,
+          'data' => $customer
+      ]);
+    } catch (\Throwable $th) {
+      return response()->json([
+          'success' => false,
+          'message' => 'Update failed.',
+          'error'   => $th->getMessage(),
+      ], 500);
+    }
   }
 
   public function destroy(Request $request, $id)
   {
     $user = $request->auth;
     $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)
-      ->with('documents')
-      ->findOrFail($id);
+                // ->with('documents')
+                ->findOrFail($id);
 
-    foreach ($customer->documents as $document) {
-      if ($document->file_path && file_exists($document->file_path)) {
-        unlink($document->file_path);
-      }
-      $document->delete();
-    }
+    // foreach ($customer->documents as $document) {
+    //   if ($document->file_path && file_exists($document->file_path)) {
+    //     unlink($document->file_path);
+    //   }
+    //   $document->delete();
+    // }
 
     $customer->delete();
 

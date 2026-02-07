@@ -87,7 +87,13 @@ class SaleController extends Controller
     );
     $saleModel = new Sale();
     if ($saleData->update($input)) {
-      // $saleModel->updateOrder($saleData->sale_id);
+      $customer = Customer::where('pharmacy_branch_id', $saleData->pharmacy_branch_id)
+            ->where(fn ($q) =>
+                $q->where('code', $saleData->customer_mobile)
+                  ->orWhere('mobile', $saleData->customer_mobile)
+            )
+            ->first();
+      $customer->totalDue($data['amount']);
       return response()->json(['success' => true, 'data' => $saleModel->getOrderDetails($saleData->id)]);
     }
     return response()->json(['success' => false, 'data' => $saleModel->getOrderDetails($saleData->id)]);

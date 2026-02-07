@@ -125,9 +125,9 @@ $router->group(
                 $router->get('customers/search', ['uses' => 'CustomerController@search']);
                 $router->get('customers', ['uses' => 'CustomerController@index']);
                 $router->get('customers/{id}', ['uses' => 'CustomerController@show']);
-                $router->post('customers', ['uses' => 'CustomerController@store']);
-                $router->post('customers/{id}', ['uses' => 'CustomerController@update']);
-                $router->delete('customers/{id}', ['uses' => 'CustomerController@destroy']);
+                $router->post('customers/store', ['uses' => 'CustomerController@store']);
+                $router->post('customers/{id}/update', ['uses' => 'CustomerController@update']);
+                $router->delete('customers/{id}/delete', ['uses' => 'CustomerController@destroy']);
                 $router->get('customers/{id}/documents', ['uses' => 'CustomerController@listDocuments']);
                 $router->post('customers/{id}/documents', ['uses' => 'CustomerController@uploadDocument']);
                 $router->delete('customers/{id}/documents/{documentId}', ['uses' => 'CustomerController@deleteDocument']);

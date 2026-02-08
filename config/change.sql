@@ -63,3 +63,20 @@ ALTER TABLE `customers` ADD `pharmacy_id` INT NULL AFTER `id`, ADD `pharmacy_bra
 
 ALTER TABLE `customers` ADD `address` VARCHAR(255) NULL AFTER `email`;
 ALTER TABLE `customers` ADD `deleted_at` TIMESTAMP NULL AFTER `updated_at`;
+
+CREATE TABLE `customer_documents` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `customer_id` bigint unsigned NOT NULL,
+  `pharmacy_branch_id` int DEFAULT NULL,
+  `type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_path` varchar(1024) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_size` bigint unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `customer_documents_customer_id_index` (`customer_id`),
+  KEY `customer_documents_pharmacy_branch_id_index` (`pharmacy_branch_id`),
+  CONSTRAINT `customer_documents_customer_id_foreign` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `customer_documents_pharmacy_branch_id_foreign` FOREIGN KEY (`pharmacy_branch_id`) REFERENCES `pharmacy_branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

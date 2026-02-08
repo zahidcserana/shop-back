@@ -29,8 +29,27 @@ class Customer extends Model
         return $this->hasMany(CustomerDocument::class);
     }
 
-    public function totalDue($payment) {
-        $this->balance -= max(0, $payment);
-        $this->save();
+    public function updateBalance($sale, $payAmount): void
+    {
+        if ($payAmount <= 0) {
+            return;
+        }
+    
+        $customer = Customer::where('pharmacy_branch_id', $sale->pharmacy_branch_id)
+            ->where(function ($q) use ($sale) {
+                $q->where('code', $sale->customer_mobile)
+                  ->orWhere('mobile', $sale->customer_mobile);
+            })
+            ->lockForUpdate() // 🔐 important inside transaction
+            ->first();
+    
+        if (!$customer || $customer->balance <= 0) {
+            return;
+        }
+    
+        $amount = min($customer->balance, $payAmount);
+        $customer->decrement('balance', $amount);
     }
+    
+
 }

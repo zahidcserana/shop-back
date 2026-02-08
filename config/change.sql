@@ -60,3 +60,6 @@ CREATE TABLE emi_installments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE `customers` ADD `pharmacy_id` INT NULL AFTER `id`, ADD `pharmacy_branch_id` INT NULL AFTER `pharmacy_id`;
+
+ALTER TABLE `customers` ADD `address` VARCHAR(255) NULL AFTER `email`;
+ALTER TABLE `customers` ADD `deleted_at` TIMESTAMP NULL AFTER `updated_at`;

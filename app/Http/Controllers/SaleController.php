@@ -62,60 +62,88 @@ class SaleController extends Controller
 
   public function payout(Request $request)
   {
-    $user = $request->auth;
-    $data = $request->all();
-    $data['updated_at'] = date('Y-m-d H:i:s');
-    $data['updated_by'] = $user->id;
-    $saleData = Sale::where('id', $data['sale_id'])->first();
+    return DB::transaction(function () use ($request) {
+      $user = $request->auth;
+      $data = $request->all();
+      $data['updated_at'] =  date('Y-m-d H:i:s');
+      $data['updated_by'] = $user->id;
 
-    $dueLog = $this->_dueLog($saleData, $data);
-    $tDue = $saleData->total_due_amount - ($data['amount'] ?? 0);
-    $discount = 0;
-    if ($tDue <= 5) {
-      $discount = $tDue;
-      $tDue = 0;
-    }
+      $saleData = Sale::findOrFail($data['sale_id']);
 
-    $input = array(
-      'total_due_amount' => $tDue,
-      'status' => $tDue > 0 ? 'DUE' : 'COMPLETE',
-      'discount' => $saleData->discount + $discount,
-      // 'status' => $data['status'],
-      'due_log' => json_encode($dueLog),
-      'updated_at' => $data['updated_at'],
-      'updated_by' => $data['updated_by'],
-    );
-    $saleModel = new Sale();
-    if ($saleData->update($input)) {
-      // $saleModel->updateOrder($saleData->sale_id);
-      return response()->json(['success' => true, 'data' => $saleModel->getOrderDetails($saleData->id)]);
-    }
-    return response()->json(['success' => false, 'data' => $saleModel->getOrderDetails($saleData->id)]);
+      $dueLog = $this->_dueLog($saleData, $data);
+
+      $tDue = $saleData->total_due_amount - ($data['amount'] ?? 0);
+      $discount = 0;
+
+      if ($tDue <= 5) {
+          $discount = max(0, $tDue);
+          $tDue = 0;
+      }
+
+      $saleData->update([
+          'total_due_amount' => $tDue,
+          'status'           => $tDue > 0 ? 'DUE' : 'COMPLETE',
+          'discount'         => $saleData->discount + $discount,
+          'due_log'          => json_encode($dueLog),
+          'updated_at'       => $data['updated_at'],
+          'updated_by'       => $data['updated_by'],
+      ]);
+
+      (new Customer())->updateBalance($saleData, $data['amount'] ?? 0);
+
+      return response()->json([
+          'success' => true,
+          'data'    => $saleData->getOrderDetails($saleData->id),
+      ]);
+    });
   }
+
 
   public function discount(Request $request)
   {
-    $user = $request->auth;
-    $data = $request->all();
-    $data['updated_at'] = date('Y-m-d H:i:s');
-    $data['updated_by'] = $user->id;
-    $saleData = Sale::where('id', $data['id'])->first();
+    return DB::transaction(function () use ($request) {
 
-    // $dueLog = $this->_dueLog($saleData, $data);
+      $user = $request->auth;
+      $data = $request->all();
 
-    $input = array(
-      'total_payble_amount' => $data['total_payble_amount'] ?? 0,
-      'discount' => $data['discount'] ?? 0,
-      'total_due_amount' => $data['total_due_amount'] ?? 0,
-      'updated_at' => $data['updated_at'],
-      'updated_by' => $data['updated_by'],
-    );
-    $saleModel = new Sale();
-    if ($saleData->update($input)) {
-      // $saleModel->updateOrder($saleData->sale_id);
-      return response()->json(['success' => true, 'data' => $saleModel->getOrderDetails($saleData->id)]);
-    }
-    return response()->json(['success' => false, 'data' => $saleModel->getOrderDetails($saleData->id)]);
+      $updatedAt = date('Y-m-d H:i:s');
+
+      $saleData = Sale::where('id', $data['id'])->lockForUpdate()->firstOrFail();
+
+      $discount = max(0, $data['discount'] ?? 0);
+      $newDiscount = $discount - $saleData->discount;
+
+      if ($discount < $saleData->discount) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Invalid amount!',
+          'error'   => 'Invalid amount!',
+        ], 500);
+      }
+
+      $payable  =  $saleData->total_payble_amount - $newDiscount;
+      $due      =  $saleData->total_due_amount - $newDiscount;
+
+      if ($discount > $payable) {
+        $discount = $payable;
+      }
+
+      $saleData->update([
+        'total_payble_amount' => $payable,
+        'discount'            => $discount,
+        'total_due_amount'    => $due,
+        'status'              => $due > 5 ? 'DUE' : 'COMPLETE',
+        'updated_at'          => $updatedAt,
+        'updated_by'          => $user->id,
+      ]);
+
+      (new Customer())->updateBalance($saleData, $newDiscount);
+
+      return response()->json([
+          'success' => true,
+          'data'    => $saleData->getOrderDetails($saleData->id),
+      ]);
+    });
   }
 
   public function saleDueList(Request $request)
@@ -224,9 +252,6 @@ class SaleController extends Controller
             )
             ->first();
 
-
-        // $customer = Customer::where('code', $order['customer_mobile'])->orWhere('mobile', $order['customer_mobile'])->first();
-
         if ($customer) {
           $customer->balance += $order['total_payble_amount'];
           $customer->save();
@@ -237,7 +262,7 @@ class SaleController extends Controller
             'code' => $order['customer_mobile'],
             'mobile' => $order['customer_mobile'],
             'name' => $order['customer_name'],
-            'balance' => $order['total_payble_amount']
+            'balance' => $order['total_due_amount']
           ]);
         }
 

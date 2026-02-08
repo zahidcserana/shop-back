@@ -150,15 +150,15 @@ class CustomerController extends Controller
   {
     $user = $request->auth;
     $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)
-                // ->with('documents')
+                ->with('documents')
                 ->findOrFail($id);
 
-    // foreach ($customer->documents as $document) {
-    //   if ($document->file_path && file_exists($document->file_path)) {
-    //     unlink($document->file_path);
-    //   }
-    //   $document->delete();
-    // }
+    foreach ($customer->documents as $document) {
+      if ($document->file_path && file_exists($document->file_path)) {
+        unlink($document->file_path);
+      }
+      $document->delete();
+    }
 
     $customer->delete();
 
@@ -190,7 +190,7 @@ class CustomerController extends Controller
 
     $documents = [];
     $files = $request->file('files', []);
-    $directory = 'assets/customer_documents/' . $user->pharmacy_branch_id;
+    $directory = 'public/customers/' . $user->pharmacy_branch_id;
 
     if (!is_dir($directory)) {
       mkdir($directory, 0755, true);
@@ -219,8 +219,7 @@ class CustomerController extends Controller
   public function deleteDocument(Request $request, $id, $documentId)
   {
     $user = $request->auth;
-    $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)
-      ->findOrFail($id);
+    $customer = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id)->findOrFail($id);
 
     $document = $customer->documents()
       ->where('id', $documentId)

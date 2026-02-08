@@ -124,6 +124,7 @@ class EmiInstallmentController extends Controller
           }
           
           $sale->save();
+          (new Customer())->updateBalance($sale, $paying);
 
           return response()->json([
             'message' => 'Installment payment successful',

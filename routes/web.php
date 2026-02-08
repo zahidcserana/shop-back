@@ -130,7 +130,7 @@ $router->group(
                 $router->delete('customers/{id}/delete', ['uses' => 'CustomerController@destroy']);
                 $router->get('customers/{id}/documents', ['uses' => 'CustomerController@listDocuments']);
                 $router->post('customers/{id}/documents', ['uses' => 'CustomerController@uploadDocument']);
-                $router->delete('customers/{id}/documents/{documentId}', ['uses' => 'CustomerController@deleteDocument']);
+                $router->delete('customers/{id}/documents/{documentId}/delete', ['uses' => 'CustomerController@deleteDocument']);
 
                 /** Products */
                 $router->delete('product/{id}/delete', ['uses' => 'ProductController@destroy']);

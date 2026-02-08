@@ -65,7 +65,7 @@ class AuthController extends Controller
                         'logo' => $logo,
                         'user_type' => $user->user_type,
                         'pos_version' => $user->pos_version ?? 1,
-                        'config' => !empty($branch->branch_config) ? json_decode($branch->branch_config, true) : []
+                        'config' => $branch->branch_config
                     ]
                 ], 200);
             }
@@ -77,7 +77,7 @@ class AuthController extends Controller
             return response()->json([
                 'data'   => 'Something went wrong!',
                 'status' => false,
-                'error'  => $e->getMessage(),
+                'error'  => $th->getMessage(),
             ], 500);
         }
     }
@@ -112,10 +112,8 @@ class AuthController extends Controller
                     'data' => [
                         'token' => $this->jwt($user),
                         'email' => $user->email,
-                        'id' => $user->id,
-                        'user_type' => $user->user_type,
-                        'pos_version' => 1,
-                        'config' => ''
+                        'name' => $user->name,
+                        'type' => $user->user_type,
                     ]
                 ], 200);
             }
@@ -127,7 +125,7 @@ class AuthController extends Controller
             return response()->json([
                 'data'   => 'Something went wrong!',
                 'status' => false,
-                'error'  => $e->getMessage(),
+                'error'  => $th->getMessage(),
             ], 500);
         }
     }

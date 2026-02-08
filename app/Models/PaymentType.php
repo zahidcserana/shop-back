@@ -8,7 +8,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class PaymentType extends Model
 {
     use SoftDeletes;
-    protected $guarded = [];
-
     public static $TYPE_CASH = 'Cash';
+
+    protected $fillable = [
+        'pharmacy_branch_id',
+        'name',
+        'account_no',
+        'status'
+    ];
+
 }

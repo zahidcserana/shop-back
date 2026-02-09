@@ -26,7 +26,7 @@ class CustomerController extends Controller
   {
     try {
       $user = $request->auth;
-      $limit = (int) ($request->limit ?? 20);
+      $limit = (int) ($request->limit ?? 500);
       $page = max((int) ($request->page ?? 1), 1);
       $offset = ($page - 1) * $limit;
 

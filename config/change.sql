@@ -64,6 +64,9 @@ ALTER TABLE `customers` ADD `pharmacy_id` INT NULL AFTER `id`, ADD `pharmacy_bra
 ALTER TABLE `customers` ADD `address` VARCHAR(255) NULL AFTER `email`;
 ALTER TABLE `customers` ADD `deleted_at` TIMESTAMP NULL AFTER `updated_at`;
 
+ALTER TABLE `customers` ADD `status` ENUM('ACTIVE','INACTIVE') NULL AFTER `balance`;
+ALTER TABLE `customers` ADD `nid` VARCHAR(100) NULL AFTER `email`;
+
 CREATE TABLE `customer_documents` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `customer_id` bigint unsigned NOT NULL,

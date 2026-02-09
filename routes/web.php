@@ -74,6 +74,7 @@ $router->group(
                 /** Medicine */
                 $router->get('medicines/expired-date', ['uses' => 'MedicineController@medicineWithExpiredDate']);
                 $router->get('medicines/search', ['uses' => 'MedicineController@search']);
+                $router->get('medicines/search-batch', ['uses' => 'MedicineController@searchBatch']);
                 $router->get('medicines/searchFromInventory', ['uses' => 'MedicineController@searchMedicineFromInventory']);
                 $router->post('medicines/company', ['uses' => 'MedicineController@searchByCompany']);
                 $router->get('companies', ['uses' => 'CompanyController@index']); // only name of all companies

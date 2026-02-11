@@ -395,90 +395,115 @@ class SaleController extends Controller
   }
 
   public function index(Request $request)
+{
+    $pageNo = $request->query('page_no') ?? 1;
+    $limit = $request->query('limit') ?? 100;
+    $offset = ($pageNo - 1) * $limit;
+
+    // Base query with LEFT JOIN for filtering
+    $baseQuery = Sale::query()
+        ->select('sales.*')
+        ->leftJoin('sale_items', 'sales.id', '=', 'sale_items.sale_id')
+        ->where('sales.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+        ->where('sales.status', '<>', 'CANCEL');
+
+    // Filters
+    $baseQuery->when($request['invoice'], fn($q) => $q->where('sales.invoice', 'like', '%' . $request['invoice'] . '%'));
+    $baseQuery->when($request['customer_mobile'], fn($q) => $q->where('sales.customer_mobile', 'like', '%' . $request['customer_mobile'] . '%'));
+    $baseQuery->when($request['is_sync'], fn($q) => $q->where('sales.is_sync', 1));
+    $baseQuery->when($request['medicine_id'], fn($q) => $q->where('sale_items.medicine_id', $request['medicine_id']));
+    $baseQuery->when($request['sale_date'], function ($q) use ($request) {
+        $range = explode(',', $request['sale_date']);
+        return $q->whereBetween('sales.created_at', [$range[0], $range[1] . ' 23:59:59']);
+    });
+    $baseQuery->when($request['serial_no'], function ($q) use ($request) {
+        $q->whereJsonContains('sale_items.serial_no', $request['serial_no']);
+    });
+
+
+    // Group to prevent duplicates
+    $baseQuery->groupBy('sales.id');
+
+    // Clone for pagination count (after grouping)
+    $countQuery = (clone $baseQuery)->select('sales.id');
+    $total = $countQuery->get()->count();
+
+    // Clone for summary — WITHOUT JOIN to avoid duplication
+    $summaryQuery = Sale::query()
+        ->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+        ->where('status', '<>', 'CANCEL');
+
+    $summaryQuery->when($request['invoice'], fn($q) => $q->where('invoice', 'like', '%' . $request['invoice'] . '%'));
+    $summaryQuery->when($request['customer_mobile'], fn($q) => $q->where('customer_mobile', 'like', '%' . $request['customer_mobile'] . '%'));
+    $summaryQuery->when($request['sale_date'], function ($q) use ($request) {
+        $range = explode(',', $request['sale_date']);
+        return $q->whereBetween('created_at', [$range[0], $range[1] . ' 23:59:59']);
+    });
+
+    // Apply medicine filter carefully using subquery if needed
+    if ($request['medicine_id']) {
+        $saleIds = DB::table('sale_items')
+            ->where('medicine_id', $request['medicine_id'])
+            ->pluck('sale_id');
+        $summaryQuery->whereIn('id', $saleIds);
+    }
+
+    $summary = $summaryQuery
+        ->selectRaw('SUM(total_payble_amount) as total_sale_amount, SUM(total_due_amount) as total_due_amount')
+        ->first();
+
+    // Fetch paginated data
+    $orders = $baseQuery
+        ->orderBy('sales.id', 'desc')
+        ->offset($offset)
+        ->limit($limit)
+        ->get();
+
+    // Format response
+    $orderData = $orders->map(function ($order) {
+        return [
+            'id' => $order->id,
+            'customer_name' => $order->customer_name,
+            'customer_mobile' => $order->customer_mobile,
+            'invoice' => $order->invoice,
+            'total_payble_amount' => $order->total_payble_amount,
+            'total_due_amount' => $order->total_due_amount,
+            'created_at' => date('Y-m-d H:i:s', strtotime($order->created_at)),
+            'image' => $order->file_name ?? '',
+        ];
+    });
+
+    return response()->json([
+        'total' => $total,
+        'data' => $orderData,
+        'page_no' => $pageNo,
+        'limit' => $limit,
+        'total_sale_amount' => (float) ($summary->total_sale_amount ?? 0),
+        'total_due_amount' => (float) ($summary->total_due_amount ?? 0),
+    ]);
+  }
+
+  public function remarks(Request $request, $id)
   {
-      $pageNo = $request->query('page_no') ?? 1;
-      $limit = $request->query('limit') ?? 100;
-      $offset = ($pageNo - 1) * $limit;
+      $sale = Sale::findOrFail($id);
 
-      // Base query with LEFT JOIN for filtering
-      $baseQuery = Sale::query()
-          ->select('sales.*')
-          ->leftJoin('sale_items', 'sales.id', '=', 'sale_items.sale_id')
-          ->where('sales.pharmacy_branch_id', $request->auth->pharmacy_branch_id)
-          ->where('sales.status', '<>', 'CANCEL');
-
-      // Filters
-      $baseQuery->when($request['invoice'], fn($q) => $q->where('sales.invoice', 'like', '%' . $request['invoice'] . '%'));
-      $baseQuery->when($request['customer_mobile'], fn($q) => $q->where('sales.customer_mobile', 'like', '%' . $request['customer_mobile'] . '%'));
-      $baseQuery->when($request['medicine_id'], fn($q) => $q->where('sale_items.medicine_id', $request['medicine_id']));
-      $baseQuery->when($request['sale_date'], function ($q) use ($request) {
-          $range = explode(',', $request['sale_date']);
-          return $q->whereBetween('sales.created_at', [$range[0], $range[1] . ' 23:59:59']);
-      });
-      $baseQuery->when($request['serial_no'], function ($q) use ($request) {
-          $q->whereJsonContains('sale_items.serial_no', $request['serial_no']);
-      });
-
-
-      // Group to prevent duplicates
-      $baseQuery->groupBy('sales.id');
-
-      // Clone for pagination count (after grouping)
-      $countQuery = (clone $baseQuery)->select('sales.id');
-      $total = $countQuery->get()->count();
-
-      // Clone for summary — WITHOUT JOIN to avoid duplication
-      $summaryQuery = Sale::query()
-          ->where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)
-          ->where('status', '<>', 'CANCEL');
-
-      $summaryQuery->when($request['invoice'], fn($q) => $q->where('invoice', 'like', '%' . $request['invoice'] . '%'));
-      $summaryQuery->when($request['customer_mobile'], fn($q) => $q->where('customer_mobile', 'like', '%' . $request['customer_mobile'] . '%'));
-      $summaryQuery->when($request['sale_date'], function ($q) use ($request) {
-          $range = explode(',', $request['sale_date']);
-          return $q->whereBetween('created_at', [$range[0], $range[1] . ' 23:59:59']);
-      });
-
-      // Apply medicine filter carefully using subquery if needed
-      if ($request['medicine_id']) {
-          $saleIds = DB::table('sale_items')
-              ->where('medicine_id', $request['medicine_id'])
-              ->pluck('sale_id');
-          $summaryQuery->whereIn('id', $saleIds);
-      }
-
-      $summary = $summaryQuery
-          ->selectRaw('SUM(total_payble_amount) as total_sale_amount, SUM(total_due_amount) as total_due_amount')
-          ->first();
-
-      // Fetch paginated data
-      $orders = $baseQuery
-          ->orderBy('sales.id', 'desc')
-          ->offset($offset)
-          ->limit($limit)
-          ->get();
-
-      // Format response
-      $orderData = $orders->map(function ($order) {
-          return [
-              'id' => $order->id,
-              'customer_name' => $order->customer_name,
-              'customer_mobile' => $order->customer_mobile,
-              'invoice' => $order->invoice,
-              'total_payble_amount' => $order->total_payble_amount,
-              'total_due_amount' => $order->total_due_amount,
-              'created_at' => date('Y-m-d H:i:s', strtotime($order->created_at)),
-              'image' => $order->file_name ?? '',
-          ];
-      });
+      $sale->remarks = $request->input('remarks');
+      $sale->save();
 
       return response()->json([
-          'total' => $total,
-          'data' => $orderData,
-          'page_no' => $pageNo,
-          'limit' => $limit,
-          'total_sale_amount' => (float) ($summary->total_sale_amount ?? 0),
-          'total_due_amount' => (float) ($summary->total_due_amount ?? 0),
+          'message' => 'Remarks updated successfully'
+      ]);
+  }
+
+  public function deliveryOrder(Request $request, $id)
+  {
+      $sale = Sale::findOrFail($id);
+
+      $sale->is_sync = !$sale->is_sync;
+      $sale->save();
+
+      return response()->json([
+          'message' => 'Order updated successfully'
       ]);
   }
 

@@ -39,6 +39,7 @@ class Sale extends Model
                     'sub_total' => $data['sub_total'],
                     'vat_amount' => $cart->tax,
                     'discount' => $data['discount'],
+                    'is_sync' => $data['is_delivery_order'] ?? 0,
                     'total_advance_amount' => $data['total_advance_amount'],
                     'total_due_amount' => $data['total_due_amount'],
                     'total_payble_amount' => $data['sub_total'] - $data['discount'],
@@ -263,6 +264,7 @@ class Sale extends Model
 
         $data = array();
         $data['order_id'] = $order->id;
+        $data['is_sync'] = $order->is_sync;
         $data['token'] = $order->token;
         $data['pharmacy_branch_id'] = $order->pharmacy_branch_id;
         $data['sub_total'] = $order->sub_total;

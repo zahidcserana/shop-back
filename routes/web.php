@@ -113,6 +113,8 @@ $router->group(
                 $router->get('sales/report-days', ['uses' => 'SaleController@dayWiseReport']);
                 $router->get('sales/due', ['uses' => 'SaleController@saleDueList']);
                 $router->post('sales/payout', ['uses' => 'SaleController@payout']);
+                $router->post('sales/{id}/remarks', 'SaleController@remarks');
+                $router->post('sales/{id}/delivery_order', 'SaleController@deliveryOrder');
                 $router->post('sales/discount', ['uses' => 'SaleController@discount']);
                 $router->get('reports/sale/latest', ['uses' => 'SaleController@latestSale']);
                 $router->get('medicines/search/sale', ['uses' => 'MedicineController@searchByShop']);

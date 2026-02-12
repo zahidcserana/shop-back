@@ -66,6 +66,7 @@ ALTER TABLE `customers` ADD `deleted_at` TIMESTAMP NULL AFTER `updated_at`;
 
 ALTER TABLE `customers` ADD `status` ENUM('ACTIVE','INACTIVE') NULL AFTER `balance`;
 ALTER TABLE `customers` ADD `nid` VARCHAR(100) NULL AFTER `email`;
+ALTER TABLE `customers` CHANGE `status` `status` ENUM('ACTIVE','INACTIVE') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'ACTIVE';
 
 CREATE TABLE `customer_documents` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -83,3 +84,4 @@ CREATE TABLE `customer_documents` (
   CONSTRAINT `customer_documents_customer_id_foreign` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
   CONSTRAINT `customer_documents_pharmacy_branch_id_foreign` FOREIGN KEY (`pharmacy_branch_id`) REFERENCES `pharmacy_branches` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+

@@ -26,11 +26,22 @@ class CustomerController extends Controller
   {
     try {
       $user = $request->auth;
-      $limit = (int) ($request->limit ?? 500);
-      $page = max((int) ($request->page ?? 1), 1);
-      $offset = ($page - 1) * $limit;
+      $pageNo = (int) $request->query('page_no', 1);
+      $limit  = (int) $request->query('limit', 100);
+      $offset = ($pageNo - 1) * $limit;
 
       $query = Customer::where('pharmacy_branch_id', $user->pharmacy_branch_id);
+
+      // Status filter
+      if ($request->filled('is_due')) {
+        $query->where('balance', '>', 0);
+      }
+
+      // Customer filter
+      if ($request->filled('customer_id')) {
+        $query->where('id', $request->customer_id);
+      }
+
 
       if (!empty($request->q)) {
         $query->where(function ($q) use ($request) {
@@ -47,10 +58,13 @@ class CustomerController extends Controller
         ->get();
 
       return response()->json([
-        'total' => $total,
         'data' => $customers,
-        'page' => $page,
-        'limit' => $limit,
+        'pagination' => [
+            'total'        => $total,
+            'page_no'      => $pageNo,
+            'limit'        => $limit,
+            'total_pages'  => ceil($total / $limit),
+        ]
       ]);
     } catch (\Throwable $th) {
       return response()->json([

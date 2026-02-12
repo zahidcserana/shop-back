@@ -2180,17 +2180,19 @@ class OrderController extends Controller
         ));
     }
 
-   public function updateMRPTP(Request $request)
+    public function updateMRPTP(Request $request)
     {
         $id  = $request->id;
         $mrp = $request->mrp;
         $tp  = $request->tp;
+        $unit_price  = $request->unit_price;
 
         $UpdateProduct = Product::find($id);
 
         // Update MRP and TP
         $UpdateProduct->mrp = $mrp;
         $UpdateProduct->tp  = $tp;
+        $UpdateProduct->unit_price  = $unit_price;
 
         // Calculate profit percentage (MRP vs TP)
         if ($tp > 0) {

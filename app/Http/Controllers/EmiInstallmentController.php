@@ -27,9 +27,8 @@ class EmiInstallmentController extends Controller
   public function index(Request $request)
   {
     $pageNo = (int) $request->query('page_no', 1);
-    $limit  = (int) $request->query('limit', 20);
+    $limit  = (int) $request->query('limit', 100);
     $offset = ($pageNo - 1) * $limit;
-
 
     $query = EmiInstallment::with(['customer', 'sale'])
           ->leftJoin('sales', 'sales.id', '=', 'emi_installments.sale_id')

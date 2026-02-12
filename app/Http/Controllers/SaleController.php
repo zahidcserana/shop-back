@@ -253,7 +253,7 @@ class SaleController extends Controller
             ->first();
 
         if ($customer) {
-          $customer->balance += $order['total_payble_amount'];
+          $customer->balance += $order['total_due_amount'];
           $customer->save();
         } else {
           $customer = Customer::create([

@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use App\Models\Customer;
 
 class Sale extends Model
 {
@@ -128,6 +129,18 @@ class Sale extends Model
             $inventory->quantity = $aQty < 0 ? 0 : $aQty;
             $inventory->save();
       }
+    }
+
+    public function customer()
+    {
+        $customer = Customer::where('pharmacy_branch_id', $this->pharmacy_branch_id)
+        ->where(fn ($q) =>
+            $q->where('code', $this->customer_mobile)
+              ->orWhere('mobile', $this->customer_mobile)
+        )
+        ->first();
+
+        return $customer;
     }
 
     public function makeOrderOld($data)
@@ -278,6 +291,7 @@ class Sale extends Model
         $data['remarks'] = $order->remarks;
         $data['customer_name'] = $order->customer_name;
         $data['customer_mobile'] = $order->customer_mobile;
+        $data['customer_balance'] = $order->customer()->balance ?? '';
         $data['status'] = $order->status;
 
         $data['company'] = '';

@@ -131,7 +131,7 @@ class SaleController extends Controller
       $saleData->update([
         'total_payble_amount' => $payable,
         'discount'            => $discount,
-        'total_due_amount'    => $due,
+        'total_due_amount'    => max(0, $due),
         'status'              => $due > 5 ? 'DUE' : 'COMPLETE',
         'updated_at'          => $updatedAt,
         'updated_by'          => $user->id,
@@ -237,6 +237,8 @@ class SaleController extends Controller
       $this->validate($request, [
         'token' => 'required',
       ]);
+
+      $data['created_by'] = $user->id;
       
       $orderModel = new Sale();
       $response = $orderModel->makeOrder($data);
@@ -272,7 +274,11 @@ class SaleController extends Controller
         }
       }
 
-      return response()->json($response);
+      return [
+        'success' => true,
+        'message' => 'Sale created successfully.',
+        'data' => $orderModel->getOrderDetails($order['order_id']),
+      ];
     } catch (\Throwable $th) {
       return response()->json([
           'success' => false,

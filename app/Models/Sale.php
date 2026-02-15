@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Customer;
+use App\Models\User;
+use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 
 class Sale extends Model
@@ -39,6 +42,7 @@ class Sale extends Model
                     'sub_total' => $data['sub_total'],
                     'vat_amount' => $cart->tax,
                     'discount' => $data['discount'],
+                    'is_sync' => $data['is_delivery_order'] ?? 0,
                     'total_advance_amount' => $data['total_advance_amount'],
                     'total_due_amount' => $data['total_due_amount'],
                     'total_payble_amount' => $data['sub_total'] - $data['discount'],
@@ -127,6 +131,11 @@ class Sale extends Model
             $inventory->quantity = $aQty < 0 ? 0 : $aQty;
             $inventory->save();
       }
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function makeOrderOld($data)
@@ -257,102 +266,125 @@ class Sale extends Model
 
     public function getOrderDetails($orderId)
     {
-        $order = $this::findOrFail($orderId);
+        try {
 
-        $orderItems = $order->items()->where('return_status', '<>', 'RETURN')->get();
+            $order = $this->with([
+                'creator',
+                'pharmacy',
+                'PharmacyBranch',
+                'items' => function ($q) {
+                    $q->where('return_status', '<>', 'RETURN')
+                    ->with(['medicine.brand', 'medicine.medicineType']);
+                }
+            ])->findOrFail($orderId);
+            
+            $orderItems = $order->items;        
 
-        $data = array();
-        $data['order_id'] = $order->id;
-        $data['token'] = $order->token;
-        $data['pharmacy_branch_id'] = $order->pharmacy_branch_id;
-        $data['sub_total'] = $order->sub_total;
-        $data['total_payble_amount'] = $order->total_payble_amount;
-        $data['total_due_amount'] = $order->total_due_amount;
-        $data['tax'] = $order->tax;
-        $data['discount'] = $order->discount;
-        $data['invoice'] = $order->invoice;
-        $data['created_at'] = date("d/m/Y", strtotime($order->created_at));
-        // $data['created_at'] = date("F j, Y h:i:s A", strtotime($order->created_at));
-        $data['remarks'] = $order->remarks;
-        $data['customer_name'] = $order->customer_name;
-        $data['customer_mobile'] = $order->customer_mobile;
-        $data['status'] = $order->status;
+            $productMap = Product::whereIn(
+                'medicine_id',
+                $orderItems->pluck('medicine_id')
+            )->get()->keyBy('medicine_id');        
 
-        $data['company'] = '';
-        $data['mr_name'] = '';
+            $customer = Customer::where('pharmacy_branch_id', $order->pharmacy_branch_id)
+                    ->where('mobile', $order->customer_mobile)
+                    ->first();
 
-        $createdBy = DB::table('users')->where('id', $order->created_by)->first();
-        $data['created_by'] = $createdBy->name ?? '';
-        $data['user_email'] = $createdBy->email ?? '';
-        $data['salesman_mobile'] = $createdBy->user_mobile ?? '';
+            $data = [];
+            $data['order_id'] = $order->id;
+            $data['is_sync'] = $order->is_sync;
+            $data['token'] = $order->token;
+            $data['pharmacy_branch_id'] = $order->pharmacy_branch_id;
+            $data['sub_total'] = $order->sub_total;
+            $data['total_payble_amount'] = $order->total_payble_amount;
+            $data['total_due_amount'] = $order->total_due_amount;
+            $data['tax'] = $order->tax;
+            $data['discount'] = $order->discount;
+            $data['invoice'] = $order->invoice;
+            $data['created_at'] = $order->created_at->format('d/m/Y');
+            // $data['created_at'] = date("F j, Y h:i:s A", strtotime($order->created_at));
+            $data['remarks'] = $order->remarks;
+            $data['customer_name'] = $order->customer_name;
+            $data['customer_mobile'] = $order->customer_mobile;
+            $data['customer_balance'] = $customer->balance ?? '';
+            $data['status'] = $order->status;
 
-        $pharmacy = $order->pharmacy;
-        $data['pharmacy'] = $pharmacy->pharmacy_shop_name;
+            $data['company'] = '';
+            $data['mr_name'] = '';
 
-        $pharmacyBranch = $order->PharmacyBranch;
-        $data['pharmacy_address'] = $pharmacyBranch->branch_full_address;
-        $data['branch_area'] = $pharmacyBranch->branch_area;
-        $data['branch_city'] = $pharmacyBranch->branch_city;
-        $data['branch_name'] = $pharmacyBranch->branch_name;
-        $data['branch_mobile'] = $pharmacyBranch->branch_mobile;
-        $data['branch_contact_person_mobile'] = $pharmacyBranch->branch_contact_person_mobile;
+            $data['created_by'] = $order->creator->name ?? '';
+            $data['user_email'] = $order->creator->email ?? '';
+            $data['salesman_mobile'] = $order->creator->user_mobile ?? '';
 
-        $items = array();
-        $totalProfit = 0;
-        $totalQty = 0;
-        $totalFreeQty = 0;
+            $pharmacy = $order->pharmacy;
+            $data['pharmacy'] = $pharmacy->pharmacy_shop_name;
 
-        foreach ($orderItems as $item) {
-            $aData = array();
-            $aData['id'] = $item->id;
-            $aData['medicine_id'] = $item->medicine_id;
-            $aData['power'] = $item->power;
-            $aData['quantity'] = $item->quantity;
-            $aData['free_quantity'] = $item->free_quantity;
-            $aData['batch_no'] = $item->batch_no;
-            $aData['sale_id'] = $item->sale_id;
-            $aData['tax'] = $item->tax;
-            $aData['dar_no'] = $item->dar_no;
-            $aData['unit_price'] = $item->unit_price;
-            $aData['sub_total'] = $item->sub_total;
-            $aData['discount'] = $item->discount;
-            $aData['unit_type'] = $item->unit_type;
-            $aData['mrp'] = $item->mrp;
-            $aData['exp_date'] = date("M, Y", strtotime($item->exp_date));
+            $pharmacyBranch = $order->PharmacyBranch;
+            $data['pharmacy_address'] = $pharmacyBranch->branch_full_address;
+            $data['branch_area'] = $pharmacyBranch->branch_area;
+            $data['branch_city'] = $pharmacyBranch->branch_city;
+            $data['branch_name'] = $pharmacyBranch->branch_name;
+            $data['branch_mobile'] = $pharmacyBranch->branch_mobile;
+            $data['branch_contact_person_mobile'] = $pharmacyBranch->branch_contact_person_mobile;
 
-            $medicine = $item->medicine;
-            $aData['medicine'] = $medicine->brand_name ?? '';
-            $aData['medicine_power'] = $medicine->strength ?? '';
-            $aData['brand'] = $medicine->brand->name ?? '';
-            $aData['medicine_type'] = $medicine->medicineType->name ?? '';
-            $aData['company'] = '';
+            $items = [];
+            $totalProfit = 0;
 
-            // Get TP & MRP from Product table
-            $product = \App\Models\Product::where('medicine_id', $item->medicine_id)->first();
-            $tp = $product->tp ?? 0;
-            $mrp = $product->mrp ?? 0;
-            $aData['tp'] = $tp;
+            foreach ($orderItems as $item) {
+                $aData = [];
+                $aData['id'] = $item->id;
+                $aData['medicine_id'] = $item->medicine_id;
+                $aData['power'] = $item->power;
+                $aData['quantity'] = $item->quantity;
+                $aData['free_quantity'] = $item->free_quantity;
+                $aData['batch_no'] = $item->batch_no;
+                $aData['sale_id'] = $item->sale_id;
+                $aData['tax'] = $item->tax;
+                $aData['dar_no'] = $item->dar_no;
+                $aData['unit_price'] = $item->unit_price;
+                $aData['sub_total'] = $item->sub_total;
+                $aData['discount'] = $item->discount;
+                $aData['unit_type'] = $item->unit_type;
+                $aData['mrp'] = $item->mrp;
+                $aData['exp_date'] = $item->exp_date?->format('M, Y') ?? '';
+
+                $medicine = $item->medicine;
+                $aData['medicine'] = $medicine->brand_name ?? '';
+                $aData['medicine_power'] = $medicine->strength ?? '';
+                $aData['brand'] = $medicine->brand->name ?? '';
+                $aData['medicine_type'] = $medicine->medicineType->name ?? '';
+                $aData['company'] = '';
+
+                // Get TP & MRP from Product table
+                $product = $productMap[$item->medicine_id] ?? null;
+                $tp = $product->tp ?? 0;
+                $mrp = $product->mrp ?? 0;
+                $aData['tp'] = $tp;
+                // Profit = (MRP - TP) * quantity
+                $profit = ($mrp - $tp) * $item->quantity;
+                $aData['profit'] = round($profit, 2); // optional rounding
+                $totalProfit += round($profit, 2);
+
+                $items[] = $aData;
+            }
+
+            $totalQty = $orderItems->sum('quantity');
+            $totalFreeQty = $orderItems->sum('free_quantity');
 
 
-            // Profit = (MRP - TP) * quantity
-            $profit = ($mrp - $tp) * $item->quantity;
-            $aData['profit'] = round($profit, 2); // optional rounding
+            $data['order_items'] = $items;
+            $data['total_qty'] = $totalQty;
+            $data['total_free_qty'] = $totalFreeQty;
+            $data['total_profit'] = $totalProfit - $order->discount;
 
-            $totalProfit += $profit;
-            $totalQty += $item->quantity;
-            $totalFreeQty += (int) $item->free_quantity;
-
-            $items[] = $aData;
+            return $data;
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sale failed.',
+                'error'   => $th->getMessage(),
+            ], 500);
         }
-
-        $data['order_items'] = $items;
-        $data['total_qty'] = $totalQty;
-        $data['total_free_qty'] = $totalFreeQty;
-        $data['total_profit'] = round($totalProfit, 2) - $order->discount;
-
-        return $data;
     }
-
 
     /** Manual Order */
 

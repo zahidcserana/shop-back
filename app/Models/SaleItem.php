@@ -16,6 +16,7 @@ class SaleItem extends Model
     use SoftDeletes;
 
     protected $casts = [
+        'exp_date' => 'date',
         'serial_no' => 'array',
     ];
 

@@ -85,3 +85,8 @@ CREATE TABLE `customer_documents` (
   CONSTRAINT `customer_documents_pharmacy_branch_id_foreign` FOREIGN KEY (`pharmacy_branch_id`) REFERENCES `pharmacy_branches` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 
+CREATE INDEX idx_sales_customer_mobile ON sales (customer_mobile);
+CREATE INDEX idx_products_medicine_id ON products (medicine_id);
+CREATE INDEX idx_sale_items_return_status ON sale_items (return_status);
+
+

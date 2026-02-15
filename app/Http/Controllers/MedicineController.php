@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use App\Models\Sale;
 use App\Models\Order;
 use App\Models\CartItem;
+use App\Models\Product;
 use App\Models\Medicine;
 use App\Models\SaleItem;
 use App\Models\OrderItem;
@@ -226,6 +227,26 @@ class MedicineController extends Controller
         }
     }
 
+    public function searchBatch(Request $request)
+    {
+        try {
+            $q = $request->q ?? '';
+
+            $data = Product::where('pharmacy_branch_id', $request->auth->pharmacy_branch_id)
+                ->where('medicine_id', $request->medicine_id)
+                ->where('batch_no', 'like', "%{$q}%")
+                ->limit(20)
+                ->get(['id', 'batch_no']);
+
+            return response()->json($data);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong!',
+                'error'   => $th->getMessage(),
+            ], 500);
+        }
+    }
 
     public function searchByShop(Request $request)
     {

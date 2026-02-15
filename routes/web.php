@@ -74,6 +74,7 @@ $router->group(
                 /** Medicine */
                 $router->get('medicines/expired-date', ['uses' => 'MedicineController@medicineWithExpiredDate']);
                 $router->get('medicines/search', ['uses' => 'MedicineController@search']);
+                $router->get('medicines/search-batch', ['uses' => 'MedicineController@searchBatch']);
                 $router->get('medicines/searchFromInventory', ['uses' => 'MedicineController@searchMedicineFromInventory']);
                 $router->post('medicines/company', ['uses' => 'MedicineController@searchByCompany']);
                 $router->get('companies', ['uses' => 'CompanyController@index']); // only name of all companies
@@ -112,6 +113,8 @@ $router->group(
                 $router->get('sales/report-days', ['uses' => 'SaleController@dayWiseReport']);
                 $router->get('sales/due', ['uses' => 'SaleController@saleDueList']);
                 $router->post('sales/payout', ['uses' => 'SaleController@payout']);
+                $router->post('sales/{id}/remarks', 'SaleController@remarks');
+                $router->post('sales/{id}/delivery_order', 'SaleController@deliveryOrder');
                 $router->post('sales/discount', ['uses' => 'SaleController@discount']);
                 $router->get('reports/sale/latest', ['uses' => 'SaleController@latestSale']);
                 $router->get('medicines/search/sale', ['uses' => 'MedicineController@searchByShop']);
@@ -123,6 +126,14 @@ $router->group(
                 $router->get('emi-installments', ['uses' => 'EmiInstallmentController@index']);
                 $router->post('emi-installments/{id}/pay', ['uses' => 'EmiInstallmentController@pay']);
                 $router->get('customers/search', ['uses' => 'CustomerController@search']);
+                $router->get('customers', ['uses' => 'CustomerController@index']);
+                $router->get('customers/{id}', ['uses' => 'CustomerController@show']);
+                $router->post('customers/store', ['uses' => 'CustomerController@store']);
+                $router->post('customers/{id}/update', ['uses' => 'CustomerController@update']);
+                $router->delete('customers/{id}/delete', ['uses' => 'CustomerController@destroy']);
+                $router->get('customers/{id}/documents', ['uses' => 'CustomerController@listDocuments']);
+                $router->post('customers/{id}/documents', ['uses' => 'CustomerController@uploadDocument']);
+                $router->delete('customers/{id}/documents/{documentId}/delete', ['uses' => 'CustomerController@deleteDocument']);
 
                 /** Products */
                 $router->delete('product/{id}/delete', ['uses' => 'ProductController@destroy']);

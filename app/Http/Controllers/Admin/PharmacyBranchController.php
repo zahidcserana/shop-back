@@ -150,8 +150,7 @@ class PharmacyBranchController extends Controller
                     // Now these methods belong to $branch via the trait
                     $branch->deleteImageIfExists($branch->branch_image);
                     $data['branch_image'] = $branch->saveLogo($newImage, 'branch');
-                } 
-                elseif (is_null($newImage)) {
+                } elseif (is_null($newImage)) {
                     $branch->deleteImageIfExists($branch->branch_image);
                     $data['branch_image'] = null;
                 }

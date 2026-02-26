@@ -19,4 +19,14 @@ class Pharmacy extends Model
         'pharmacy_shop_dgda_verification_status'
     ];
 
+    public function warehouses()
+    {
+        return $this->hasMany(Warehouse::class, 'pharmacy_id');
+    }
+
+    public function transfers()
+    {
+        return $this->hasMany(StockTransfer::class, 'pharmacy_id');
+    }
+
 }

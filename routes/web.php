@@ -294,6 +294,39 @@ $router->group(
                 );
             }
         );
+
+        $router->group(
+            ['prefix' => 'client'],
+            function () use ($router) {
+                $router->get('/', function () use ($router) {
+                    return $router->app->version();
+                });
+
+                $router->post('login', ['uses' => 'Auth\AuthController@clientAuthenticate']);
+            
+                $router->group(
+                    ['middleware' => 'jwt.auth'],
+                    function () use ($router) {
+
+                        // -------------------------------
+                        // Warehouse
+                        // -------------------------------
+                        $router->get('warehouses/{id}/stocks', 'Client\WarehouseController@stocks');
+                        $router->post('warehouses/store-stock', 'Client\WarehouseController@storeStock');
+                        $router->get('warehouses/search-product', 'Client\WarehouseController@searchProduct');
+                        
+                        // -------------------------------
+                        // Stock Transfer
+                        // -------------------------------
+                        $router->get('stock-transfers', 'Client\StockTransferController@index');
+                        $router->get('stock-transfers/{id}', 'Client\StockTransferController@view');
+                        $router->post('stock-transfers', 'Client\StockTransferController@store');
+                        $router->post('stock-transfers/{id}/approve', 'Client\StockTransferController@approve');
+                        
+                    }
+                );
+            }
+        );
     }
 );
 /** Script for database migration */

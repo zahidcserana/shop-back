@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PharmacyBranch;
 use App\Models\PaymentType;
-use Illuminate\Http\Request;
 use App\Models\Pharmacy;
+use App\Models\Warehouse;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PharmacyBranchController extends Controller
@@ -112,6 +113,12 @@ class PharmacyBranchController extends Controller
                 'user_mobile' => $shop->branch_mobile,
                 'email' => $request->email,
                 'password' => $request->password,
+            ]);
+
+            Warehouse::create([
+                'pharmacy_id' => $request->pharmacy_id,
+                'name' => Warehouse::$DEFAULT_WAREHOUSE,
+                'location' => $request->branch_city,
             ]);
 
             DB::commit();

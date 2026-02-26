@@ -53,4 +53,14 @@ class PharmacyBranch extends Model
         return $this->hasOne(User::class, 'pharmacy_branch_id');
     }
 
+    public function transfers()
+    {
+        return $this->hasMany(StockTransfer::class, 'pharmacy_branch_id');
+    }
+
+    public function products()
+    {
+        return $this->hasMany(Product::class, 'pharmacy_branch_id');
+    }
+
 }

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\PharmacyBranch;
 
 class User extends Model implements AuthenticatableContract, AuthorizableContract
 {
@@ -55,5 +56,25 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
         $user->save();
 
         return $user;
+    }
+
+    public function isClient() {
+        return $this->user_type == $this::ROLE_ADMIN && !empty($this->pharmacy_id);
+    }
+
+    public function shopIds() {
+        
+    }
+
+    public function shops() {
+        return PharmacyBranch::where('pharmacy_id', $this->pharmacy_id)->get();
+    }
+
+    public function shopList() {
+        return PharmacyBranch::select('id', 'branch_name as name')->where('pharmacy_id', $this->pharmacy_id)->get();
+    }
+
+    public function warehouseList() {
+        return Warehouse::select('id', 'name')->where('pharmacy_id', $this->pharmacy_id)->get();        
     }
 }

@@ -37,6 +37,11 @@ class Medicine extends Model
     return $this->hasMany(Product::class, 'medicine_id');
   }
 
+  public function warehouseStocks()
+  {
+    return $this->hasMany(WarehouseStock::class, 'medicine_id');
+  }
+
   public function scopeExistsInBranch($query, $productName, $auth, $ignoreId = null)
   {
       return $query->whereRaw('LOWER(brand_name) = ?', [strtolower($productName)])

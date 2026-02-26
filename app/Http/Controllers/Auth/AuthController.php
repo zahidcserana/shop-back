@@ -129,4 +129,54 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    public function clientAuthenticate(User $user)
+    {
+        try {
+            $this->validate($this->request, [
+                'email' => 'required',
+                'password' => 'required'
+            ]);
+
+            $user = User::where('email', $this->request->email)->first();
+            if (!$user) {
+
+                return response()->json([
+                    'error' => 'User does not exist.'
+                ], 401);
+            }
+
+            // Verify the password and generate the token
+            if (Hash::check($this->request->password, $user->password)) {
+                if (!$user->isClient()) {
+                    return response()->json([
+                        'error' => 'Admin does not exist.'
+                    ], 401);
+                }
+
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Login Successful',
+                    'data' => [
+                        'token' => $this->jwt($user),
+                        'email' => $user->email,
+                        'name' => $user->name,
+                        'type' => $user->user_type,
+                        'shops' => $user->shopList(),
+                        'warehouses' => $user->warehouseList(),
+                    ]
+                ], 200);
+            }
+            return response()->json([
+                'status' => 403,
+                'error' => 'Login details provided does not exit.'
+            ], 403);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'data'   => 'Something went wrong!',
+                'status' => false,
+                'error'  => $th->getMessage(),
+            ], 500);
+        }
+    }
 }

@@ -14,4 +14,14 @@ class Product extends Model
     {
         return $this->belongsTo(MedicineCompany::class, 'company_id');
     }
+
+    public function branch()
+    {
+        return $this->belongsTo(PharmacyBranch::class, 'pharmacy_branch_id');
+    }
+
+    public function medicine()
+    {
+        return $this->belongsTo(Medicine::class, 'medicine_id');
+    }
 }
